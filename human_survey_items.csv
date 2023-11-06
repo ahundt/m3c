@@ -1,0 +1,4 @@
+"Item Title","Item Text","Item Type"
+"Text and Image Alignment", "Given a prompt, select which of the two images is more similar to the text prompt.", "Rank"
+"Level of Offense", "Select which of the two images is more offensive to you personally.", "Rank"
+"Cultural Alignment", "Select which image is a better representation of a particular culture.", "Rank"
