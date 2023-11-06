@@ -1,14 +1,13 @@
 # Sanitize a folder of generated images and prompts for consistency.
 #
-# This code is to go through the output of the image generators and the prompt files.
-# To prepare for human evaluation.
-# There are CSV files that list the filenames.
-# It cleans up filenames that have a comma in them, removing the commas, and ensuring there aren't double underscores.
-# The filenames also contain the generator seed, which ensures nearly identical images are generated, this code reads those numbers and adds them to the CSV.
+# This code is designed to process the output of image generators and prompt files
+# in preparation for human evaluation. It involves cleaning up filenames that have 
+# a comma in them, removing the commas, and ensuring there aren't double underscores.
+# The filenames also contain the generator seed, which ensures nearly identical images
+# are generated. This code reads those numbers and adds them to the CSV files.
 # Since this code modifies files directly on disk, it asks for user confirmation before making the changes.
 
 import os
-import sys
 import json
 import pandas as pd
 import re
@@ -16,7 +15,7 @@ import argparse
 import copy
 import csv
 
-
+# Function to extract the generator seed from a filename
 def get_seed(filename):
     # Match the last group of digits before the .png extension
     match = re.search(r"(\d+)\.png$", filename)
@@ -24,13 +23,13 @@ def get_seed(filename):
         return int(match.group(1))
     return None
 
-
+# Command-line argument parser
 parser = argparse.ArgumentParser()
-parser.add_argument("folder", default="CCUB_eval", help="The folder path")
+parser.add_argument("folder", help="The folder path")
 parser.add_argument("--auto", action="store_true", help="Automatically apply changes to the filesystem")
 args = parser.parse_args()
 
-
+# Prepare the folder path and other necessary variables
 folder = os.path.abspath(os.path.normpath(args.folder))
 folder_name = os.path.basename(folder)
 parent_dir = os.path.dirname(folder)
@@ -44,9 +43,13 @@ files_in_csv_but_not_on_disk = 0
 png_files_missing_seed = 0
 png_set = set()
 csv_set = set()
+
+# Load the existing JSON file if it exists
 if os.path.exists(json_path):
     with open(json_path) as f:
         name_dict = json.load(f)
+
+# Iterate through the folder to find CSV files and PNG files
 for root, dirs, files in os.walk(folder):
     for filename in files:
         file_path = os.path.join(root, filename)
@@ -56,14 +59,16 @@ for root, dirs, files in os.walk(folder):
             elif filename.endswith(".png"):
                 png_set.add(filename)
                 if "," in filename:
-                    new_name = filename.replace(",_", "_").replace(',','_').replace("__", "_")
+                    # Clean up filenames with commas
+                    new_name = filename.replace(",_", "_").replace(',', '_').replace("__", "_")
                     name_dict[filename] = new_name
                     with open(json_path, "w") as f:
                         json.dump(name_dict, f, indent=4)
-                # else:
-                #     name_dict[filename] = filename
+
 df_list = []
 step = 0
+
+# Process each CSV file
 for csv_path in csv_list:
     # Use quotechar to handle the double quotes in the CSV files
     df = pd.read_csv(csv_path, quotechar='"')
@@ -90,18 +95,20 @@ for csv_path in csv_list:
                         if filename in name_dict:
                             # print(f'filename exists in dict: {filename}:{name_dict[filename]} >>>>>>')
                             # print(f'{step} >>> row[col] before: {row[col]}')
+
+                            # Rename files based on the name_dict
                             df.loc[index, col] = row[col].replace(filename, name_dict[filename])
                             # print(f'{step} >>> row[col] after: {row[col]}')
                         else:
                             not_in_dict += 1
                         # Use filename instead of row[col] to get the seed
                         seed = get_seed(filename)
-                        print("filename: {filename} seed: {seed}")
+                        print(f"filename: {filename} seed: {seed}")
                         # Check if the seed is not None before appending it
                         if seed is not None:
                             seeds.append(seed)
                         else:
-                            print("Warning: The file {filename} was missing a generator seed.")
+                            print(f"Warning: The file {filename} was missing a generator seed.")
                             png_files_missing_seed += 1
                     else:
                         # Print an error message
@@ -115,16 +122,20 @@ for csv_path in csv_list:
             # Convert the seed to a string before assigning it
             df.loc[index, "seed"] = str(seed)
         else:
-            # Print a warning with the csv file name, the row entry and the seeds
+            # Print a warning with the csv file name, the row entry, and the seeds
             print(f"Warning: The seeds in row {index} of {csv_path} are not consistent. The row entry is: {row}. The seeds are: {seeds}.")
     df_list.append(copy.deepcopy(df))
+
+# Calculate the percentage of filenames not in the dictionary
 percentage = round((not_in_dict / png_count) * 100, 2) if png_count > 0 else 0
+
 print("The following files will be renamed:")
 for old_name, new_name in name_dict.items():
     print(f"{old_name} -> {new_name}")
+
+# Check for inconsistencies and summarize results
 set_diff = png_set - csv_set
-print("")
-print("Results of Dataset Cleanup and Summary Stats")
+print("\nResults of Dataset Cleanup and Summary Stats")
 print("--------------------------------------------")
 if len(set_diff) or files_in_csv_but_not_on_disk:
     print(f"The following PNG files are not in the CSV files: {set_diff}. This means that some of the PNG files in the folder are not referenced in the CSV files.")
@@ -140,6 +151,7 @@ print(f"Files with commas: {not_in_dict} PNG files, or {percentage}% of the tota
 # Use the set difference to show the PNG files that are not in the CSV files
 print(f"There are {len(csv_list)} CSV files and {len(name_dict)} PNG files to be modified.")
 
+# Prompt the user for confirmation if not in auto mode
 if args.auto or input("Do you want to rename the files in the folder and save the CSV files? (y/n) ").lower() == "y":
     for root, dirs, files in os.walk(folder):
         for filename in files:
@@ -147,7 +159,7 @@ if args.auto or input("Do you want to rename the files in the folder and save th
                 file_path = os.path.join(root, filename)
                 new_name = name_dict[filename]
                 os.rename(file_path, os.path.join(root, new_name))
-                print(f"Renamed {filename} to {new_name}.")
+                print(f"Renamed {filename} to {new_name}")
     for csv_path, df in zip(csv_list, df_list):
         df.to_csv(csv_path, index=False, quoting=csv.QUOTE_ALL)
         print(f"Saved {csv_path}.")
