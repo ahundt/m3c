@@ -50,7 +50,9 @@ df_list = []
 for csv_path in csv_list:
     # Use quotechar to handle the double quotes in the CSV files
     df = pd.read_csv(csv_path, quotechar='"')
-    df["seed"] = ""
+    # Check if there is an existing seed column
+    if "seed" not in df.columns:
+        df["seed"] = ""
     for index, row in df.iterrows():
         seeds = []
         for col in row.index:
@@ -69,6 +71,7 @@ for csv_path in csv_list:
                             row[col] = os.path.join(dir, filename)
                         else:
                             not_in_dict += 1
+                        # Use filename instead of row[col] to get the seed
                         seed = get_seed(filename)
                         # Check if the seed is not None before appending it
                         if seed is not None:
