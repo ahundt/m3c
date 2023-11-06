@@ -1,3 +1,12 @@
+# Sanitize a folder of generated images and prompts for consistency.
+#
+# This code is to go through the output of the image generators and the prompt files.
+# To prepare for human evaluation.
+# There are CSV files that list the filenames.
+# It cleans up filenames that have a comma in them, removing the commas, and ensuring there aren't double underscores.
+# The filenames also contain the generator seed, which ensures nearly identical images are generated, this code reads those numbers and adds them to the CSV.
+# Since this code modifies files directly on disk, it asks for user confirmation before making the changes.
+
 import os
 import sys
 import json
