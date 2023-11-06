@@ -62,8 +62,9 @@ for root, dirs, files in os.walk(folder):
                     # Clean up filenames with commas
                     new_name = filename.replace(",_", "_").replace(',', '_').replace("__", "_")
                     name_dict[filename] = new_name
-                    with open(json_path, "w") as f:
-                        json.dump(name_dict, f, indent=4)
+
+with open(json_path, "w") as f:
+    json.dump(name_dict, f, indent=4)
 
 df_list = []
 step = 0
@@ -80,7 +81,7 @@ for csv_path in csv_list:
         for col in row.index:
             step += 1
             # Check if the column contains a PNG file
-            if ".png" in row[col]:
+            if ".png" in str(row[col]):
                 dir, filename = os.path.split(row[col])
                 # Use os.path.splitext to get the file extension
                 name, ext = os.path.splitext(filename)
