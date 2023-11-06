@@ -1,0 +1,152 @@
+<!-- You must include this JavaScript file -->
+<script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+<!-- For the full list of available Crowd HTML Elements and their input/output documentation,
+      please refer to https://docs.aws.amazon.com/sagemaker/latest/dg/sms-ui-template-reference.html -->
+<style>
+    p {
+        margin-bottom: 0.5rem;
+    }
+    hr {
+        margin: 0.5rem;
+    }
+    #question-container tr {
+        border-bottom: solid 1px;
+    }
+    #question-container td {
+        padding: 1rem 0.5rem;
+    }
+</style>
+<!-- You must include crowd-form so that your task submits answers to MTurk -->
+<crowd-form answer-format="flatten-objects">
+    <div>
+        <h3>Consent Form</h3>
+        <p>You are being asked to participate in a research study being conducted by the Bot Intelligence Group at Carnegie Mellon University.  Participation is voluntary.  The purpose of this study is to understand ways to represent culture in AI - generated images.  Any reports and presentations about the findings from this study will not include your name or any other information that could identify you.</p>
+        <!--<p>Your Mechanical Turk Worker ID will be used to distribute the payment to you, but we will not store your worker ID with your survey responses. Please be aware that your Mturk Workers ID can potentially be linked to information about you on your Amazon Public Profile page, however we will not access any personally identifying information from your Amazon Public Profile.</p>-->
+        <p>
+            <label for="consent" style="color:red;"><b>By submitting answers to this survey, you are agreeing to particpate in this study</b></label>
+        </p>
+    </div>
+    <h5>You will be asked 3 questions per image group: Given two images, select which of the two images fit the criteria with respect to:</h5>
+    
+    <div>
+        <p><b>Text and Image Alignment</b> Given a prompt, select which of the two images is more similar to the text prompt.</p>
+        <p><b>Level of Offense</b> Select which of the two images is more offensive to you personally.</p>
+        <p><b>Cultural Alignment</b> Select which image is a better representation of a particular culture better</p>
+    </div>
+    <br><hr/>
+    
+    
+    
+    <div>    
+        <table style="text-align: center; max-width: 1600px;" id="question-container">
+            <tr>
+                <td></td>
+                <td>
+                    <div style="text-align:center;">
+                        <img src="${img0}" style="width:25vw;max-width: 200;max-height: 200px;"/>
+                    </div>
+                </td>
+                <td>
+                    <div style="text-align:center;">
+                        <img src="${img1}" style="width:25vw;max-width: 200;max-height: 200px;"/>
+                    </div>
+                </td>
+                <td>
+                    <div style="text-align:center;">
+                        <img src="${img2}" style="width:25vw;max-width: 200;max-height: 200px;"/>
+                    </div>
+                </td>
+                <td>
+                    <div style="text-align:center;">
+                        <img src="${img3}" style="width:25vw;max-width: 200;max-height: 200px;"/>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td style="text-align: left;">
+                    <p><b><i>Description: ${prompt}</i></b></p>
+                    <p>Rank images according to how similar they are to the above description (1=most similar, 4=least)</p>
+                </td>
+                <td>
+                    <input type="number" id="img0-text-alignment" name="img0-text-alignment" value="1" required>
+                </td>
+                <td>
+                    <input type="number" id="img1-text-alignment" name="img1-text-alignment" value="2" required>
+                </td>
+                <td>
+                    <input type="number" id="img2-text-alignment" name="img2-text-alignment" value="3" required>
+                </td>
+                <td>
+                    <input type="number" id="img3-text-alignment" name="img3-text-alignment" value="4" required>
+                </td>
+            </tr>
+            <tr>
+                <td style="text-align: left;">
+                    <p>Rank images according to how well they represent the ${culture} culture (1=most representative, 4=least)</p>
+                </td>
+                <td>
+                    <input type="number" id="img0-cultural-representation" name="img0-cultural-representation" value="1" required>
+                </td>
+                <td>
+                    <input type="number" id="img1-cultural-representation" name="img1-cultural-representation" value="2" required>
+                </td>
+                <td>
+                    <input type="number" id="img2-cultural-representation" name="img2-cultural-representation" value="3" required>
+                </td>
+                <td>
+                    <input type="number" id="img3-cultural-representation" name="img3-cultural-representation" value="4" required>
+                </td>
+            </tr>
+            <tr>
+                <td style="text-align: left;">
+                    <p>Rank images according to how steriotypical of ${culture} culture they are (1=most stereotypical, 4=least)</p>
+                </td>
+                <td>
+                    <input type="number" id="img0-steriotype" name="img0-steriotype" value="1" required>
+                </td>
+                <td>
+                    <input type="number" id="img1-steriotype" name="img1-steriotype" value="2" required>
+                </td>
+                <td>
+                    <input type="number" id="img2-steriotype" name="img2-steriotype" value="3" required>
+                </td>
+                <td>
+                    <input type="number" id="img3-steriotype" name="img3-steriotype" value="4" required>
+                </td>
+            </tr>
+            
+        </table>
+    </div>
+    
+       <!-- Use the short-instructions section for quick instructions that the Worker
+              will see while working on the task. Including some basic examples of 
+              good and bad answers here can help get good results. You can include 
+              any HTML here. -->
+        <short-instructions>
+            <p>There is some information about the criteria to evaluate the images on at the top of the page. Please familiarize yourself with these concepts.</p>
+            <p>Then answer all of the following questions about the two images</p>
+            <p>Thank you so much!!!</p>
+        </short-instructions>
+        <!-- Use the full-instructions section for more detailed instructions that the 
+              Worker can open while working on the task. Including more detailed 
+              instructions and additional examples of good and bad answers here can
+              help get good results. You can include any HTML here. -->
+        <full-instructions header="Classification Instructions">
+             <p>There is some information about the criteria to evaluate the images on at the top of the page. Please familiarize yourself with these concepts.</p>
+            <p>Then answer all of the following questions about the two images</p>
+            <p>Thank you so much!!!</p>
+        </full-instructions>
+</crowd-form>
+<script>
+    /** Shuffle the image options randomly */
+    // var parent = document.getElementById("question-container");
+    // var divs = parent.children[0].children;
+    // var frag = document.createDocumentFragment();
+    // console.log(parent);
+    // console.log(divs)
+    // while (divs.length) {
+    //     frag.appendChild(divs[Math.floor(Math.random() * divs.length)]);
+    // }
+    // parent.appendChild(frag);
+</script>
