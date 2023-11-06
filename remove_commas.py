@@ -37,41 +37,50 @@ for root, dirs, files in os.walk(folder):
                 csv_list.append(file_path)
             elif filename.endswith(".png"):
                 png_set.add(filename)
-            elif "," in filename:
-                new_name = filename.replace(",", "")
-                name_dict[filename] = new_name
+                if "," in filename:
+                    new_name = filename.replace(",", "")
+                    name_dict[filename] = new_name
 with open(json_path, "w") as f:
     json.dump(name_dict, f)
 df_list = []
 for csv_path in csv_list:
     df = pd.read_csv(csv_path)
     df["seed"] = ""
+    # Skip the first row as it is the prompt
     for index, row in df.iterrows():
-        seeds = []
-        for col in row.index:
-            if isinstance(row[col], str) and row[col].startswith('"') and row[col].endswith('"'):
-                row[col] = row[col][1:-1]
-                dir, filename = os.path.split(row[col])
-                if filename.endswith(".png"):
-                    csv_set.add(filename)
-                    png_count += 1
-                    if filename in name_dict:
-                        filename = name_dict[filename]
-                        row[col] = os.path.join(dir, filename)
-                    else:
-                        not_in_dict += 1
-                    seed = get_seed(filename)
-                    seeds.append(seed)
-                row[col] = os.path.join(parent_dir, row[col])
-        if len(set(seeds)) == 1:
-            seed = seeds[0]
-            df.loc[index, "seed"] = seed
-        else:
-            print(f"Warning: The seeds in row {index} of {csv_path} are not consistent. The seeds are: {seeds}.")
+        if index > 0:
+            seeds = []
+            for col in row.index:
+                if isinstance(row[col], str) and row[col].startswith('"') and row[col].endswith('"'):
+                    row[col] = row[col][1:-1]
+                    dir, filename = os.path.split(row[col])
+                    if filename.endswith(".png"):
+                        csv_set.add(filename)
+                        png_count += 1
+                        # Check if the filename is valid and exists in the folder
+                        if os.path.isfile(os.path.join(parent_dir, row[col])):
+                            if filename in name_dict:
+                                filename = name_dict[filename]
+                                row[col] = os.path.join(dir, filename)
+                            else:
+                                not_in_dict += 1
+                            seed = get_seed(filename)
+                            seeds.append(seed)
+                        else:
+                            # Print an error message
+                            print(f"Error: {filename} is not a valid or existing file.")
+                    row[col] = os.path.join(parent_dir, row[col])
+            if len(set(seeds)) == 1:
+                seed = seeds[0]
+                df.loc[index, "seed"] = seed
+            else:
+                # Print a warning with the csv file name, the row entry and the seeds
+                print(f"Warning: The seeds in row {index} of {csv_path} are not consistent. The row entry is: {row}. The seeds are: {seeds}.")
     df_list.append(df)
 percentage = round((not_in_dict / png_count) * 100, 2) if png_count > 0 else 0
 print(f"{percentage}% of {png_count} PNG files are not in the dictionary. This means that {not_in_dict} of the PNG files in the folder have not been renamed or do not exist.")
-print(f"There are {len(png_set - csv_set)} PNG files that are not in the CSV files. This means that some of the PNG files in the folder are not referenced in the CSV files.")
+# Use the set difference to show the PNG files that are not in the CSV files
+print(f"The following PNG files are not in the CSV files: {png_set - csv_set}. This means that some of the PNG files in the folder are not referenced in the CSV files.")
 print(f"There are {len(csv_list)} CSV files and {len(name_dict)} PNG files to be modified.")
 print("The following files will be renamed:")
 for old_name, new_name in name_dict.items():
