@@ -27,6 +27,7 @@ def get_seed(filename):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("folder", default="CCUB_eval", help="The folder path")
+parser.add_argument("--auto", action="store_true", help="Automatically apply changes to the filesystem")
 args = parser.parse_args()
 
 
@@ -138,8 +139,8 @@ else:
 print(f"Files with commas: {not_in_dict} PNG files, or {percentage}% of the total {png_count} PNG files are not in the dictionary of files to rename. This means that their PNG files in the folder did not need to be renamed.")
 # Use the set difference to show the PNG files that are not in the CSV files
 print(f"There are {len(csv_list)} CSV files and {len(name_dict)} PNG files to be modified.")
-answer = input("Do you want to rename the files in the folder and save the csv files? (y/n) ")
-if answer.lower() == "y":
+
+if args.auto or input("Do you want to rename the files in the folder and save the CSV files? (y/n) ").lower() == "y":
     for root, dirs, files in os.walk(folder):
         for filename in files:
             if filename in name_dict:
