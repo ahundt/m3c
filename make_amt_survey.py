@@ -1,4 +1,3 @@
-
 # Import the necessary libraries
 import argparse
 import boto3
@@ -7,7 +6,7 @@ import pandas as pd
 import os
 import json
 from jinja2 import Template
-
+import requests # Import the requests module
 
 # Define a function to parse the command line arguments
 def parse_args():
@@ -20,6 +19,7 @@ def parse_args():
     parser.add_argument("--output", type=str, default="output.json", help="The file to save the data and return values from the Amazon connection")
     # Parse the arguments and return them as a dictionary
     return vars(parser.parse_args())
+
 # Define a function to read the items file
 def read_items(file):
     # Check if the file exists
@@ -118,6 +118,15 @@ def save_data(output, data):
         # Write the data as a JSON string to the file
         f.write(json.dumps(data) + "\n")
 
+# Define a function to upload an image to an S3 bucket and return the object URL
+def upload_image(url, bucket, key, client):
+    # Get the raw data of the image from the URL
+    r = requests.get(url, stream=True)
+    # Upload the file-like object to the S3 bucket
+    client.upload_fileobj(r.raw, bucket, key)
+    # Return the object URL
+    return f"https://{bucket}.s3.amazonaws.com/{key}"
+
 # Define a main function
 def main():
     # Call the function to parse the command line arguments and store the result in a variable
@@ -130,7 +139,9 @@ def main():
         access_key = df["Access key ID"][0]
         secret_key = df["Secret access key"][0]
     # Create a boto3 client object for MTurk sandbox using the access key and secret key
-    client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    mturk_client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    # Create a boto3 client object for S3 using the access key and secret key
+    s3_client = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     # Loop through the items and do the following for each item:
     for item in items:
         # Create a HIT type with a suitable title, description, reward, duration, and keywords, and store the result in a variable
@@ -140,7 +151,7 @@ def main():
             reward=0.1,
             duration=300,
             keywords="image, rating, survey",
-            client=client
+            client=mturk_client
         )
         # Save the HIT type ID to the output file
         save_data(args["output"], {"hit_type_id": hit_type_id})
@@ -161,24 +172,50 @@ def main():
                 random.seed("user_id" + str(row["seed"]))
                 # If the item type is rank, call the function to create a HIT layout for a rank item and store the result in a variable
                 if item["type"] == "Rank":
+                    # Create an empty list to store the S3 object URLs of the images
+                    s3_urls = []
+                    # Loop through the images in the row and do the following for each image:
+                    for image in row["images"]:
+                        # Get the image URL from the local folder
+                        image_url = os.path.join(args["directory"], subfolder, image)
+                        # Get the image file name from the URL
+                        image_file = os.path.basename(image_url)
+                        # Upload the image to the S3 bucket and get the object URL
+                        s3_url = upload_image(image_url, "my-bucket", image_file, s3_client)
+                        # Append the object URL to the list of S3 object URLs
+                        s3_urls.append(s3_url)
+                    # Call the function to create a HIT layout for a rank item using the S3 object URLs and store the result in a variable
                     hit_layout = create_rank_layout(
                         title=item["title"],
                         text=item["text"],
-                        images=row["images"]
+                        images=s3_urls
                     )
                 # If the item type is likert, call the function to create a HIT layout for a likert item and store the result in a variable
                 elif item["type"] == "Likert":
+                    # Create an empty list to store the S3 object URLs of the images
+                    s3_urls = []
+                    # Loop through the images in the row and do the following for each image:
+                    for image in row["images"]:
+                        # Get the image URL from the local folder
+                        image_url = os.path.join(args["directory"], subfolder, image)
+                        # Get the image file name from the URL
+                        image_file = os.path.basename(image_url)
+                        # Upload the image to the S3 bucket and get the object URL
+                        s3_url = upload_image(image_url, "my-bucket", image_file, s3_client)
+                        # Append the object URL to the list of S3 object URLs
+                        s3_urls.append(s3_url)
+                    # Call the function to create a HIT layout for a likert item using the S3 object URLs and store the result in a variable
                     hit_layout = create_likert_layout(
                         title=item["title"],
                         text=item["text"],
-                        images=row["images"]
+                        images=s3_urls
                     )
                 # Call the function to create and upload a HIT with the HIT type ID, the HIT layout, and the number of assignments, and store the result in a variable
                 hit_id, hit_url = create_hit(
                     hit_type_id=hit_type_id,
                     hit_layout=hit_layout,
                     assignments=10,
-                    client=client
+                    client=mturk_client
                 )
                 # Save the HIT ID and the HIT URL to the output file
                 save_data(args["output"], {"hit_id": hit_id, "hit_url": hit_url})
