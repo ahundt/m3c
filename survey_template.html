@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title }}</title>
+  <!-- Load jQuery, jQuery UI, and Bootstrap from CDN -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <!-- Define some custom CSS styles -->
+  <style>
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    .image {
+      width: 200px;
+      height: 200px;
+      margin: 10px;
+      border: 1px solid black;
+    }
+
+    .number {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .sortable {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .rating {
+      display: flex;
+      justify-content: center;
+      margin: 10px;
+    }
+
+    .radio {
+      display: none;
+    }
+
+    .label {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      margin: 5px;
+      border: 1px solid black;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      cursor: pointer;
+    }
+
+    .radio:checked + .label {
+      background-color: green;
+      color: white;
+    }
+
+    .answer {
+      display: none;
+    }
+
+    .alert {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {% for item in items %}
+    <div class="item">
+      <h2>{{ item.title }}</h2>
+      <p>{{ item.text }}</p>
+      {% if item.type == "Rank" %}
+      <div class="sortable">
+        {% for image in item.images %}
+        <div class="image" data-id="{{ loop.index }}"><img src="{{ image }}" alt="Image {{ loop.index }}"><span class="number">{{ loop.index }}</span></div>
+        {% endfor %}
+      </div>
+      <input class="answer" type="text" name="answer{{ loop.index }}" id="answer{{ loop.index }}" value="">
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        Please rank all the images before submitting.
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      {% elif item.type == "Likert" %}
+      <div class="rating">
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-1" value="1">
+        <label class="label" for="rating{{ loop.index }}-1">1</label>
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-2" value="2">
+        <label class="label" for="rating{{ loop.index }}-2">2</label>
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-3" value="3">
+        <label class="label" for="rating{{ loop.index }}-3">3</label>
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-4" value="4">
+        <label class="label" for="rating{{ loop.index }}-4">4</label>
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-5" value="5">
+        <label class="label" for="rating{{ loop.index }}-5">5</label>
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-6" value="6">
+        <label class="label" for="rating{{ loop.index }}-6">6</label>
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-7" value="7">
+        <label class="label" for="rating{{ loop.index }}-7">7</label>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <script>
+    // Get the worker ID, the seed, and the assignment ID from the URL
+    var workerId = turkGetParam("workerId");
+    var seed = turkGetParam("seed");
+    var assignmentId = turkGetParam("assignmentId");
+    // Create a random number generator based on the worker ID and the seed
+    var random = new Math.seedrandom(workerId + seed);
+    // Loop through the items
+    $(".item").each(function() {
+      // Get the item type, the sortable element, the answer element, and the alert element
+      var type = $(this).find(".answer").attr("name").slice(0, 6);
+      var sortable = $(this).find(".sortable");
+      var answer = $(this).find(".answer");
+      var alert = $(this).find(".alert");
+      // If the item type is "answer", do the following
+      if (type == "answer") {
+        // Get the number of images
+        var n = sortable.children().length;
+        // Shuffle the images based on the random number generator
+        for (var i = n - 1; i > 0; i--) {
+          var j = Math.floor(random() * (i + 1));
+          var temp = sortable.children()[i];
+          sortable.insertBefore(sortable.children()[j], sortable.children()[i]);
+          sortable.insertBefore(temp, sortable.children()[j]);
+        }
+        // Update the numbers on the images
+        for (var i = 0; i < n; i++) {
+          sortable.children()[i].querySelector(".number").textContent = i + 1;
+        }
+        // Make the images draggable and sortable using jQuery UI
+        sortable.sortable({
+          update: function(event, ui) {
+            // Update the numbers on the images
+            for (var i = 0; i < n; i++) {
+              sortable.children()[i].querySelector(".number").textContent = i + 1;
+            }
+            // Update the answer value
+            var order = sortable.sortable("toArray", {attribute: "data-id"});
+            answer.val(order.join(","));
+          }
+        });
+        sortable.disableSelection();
+        // Validate the answer before submitting
+        answer.on("change", function() {
+          // If the answer is empty or incomplete, show the alert and prevent submission
+          if (answer.val().split(",").length < n) {
+            alert.show();
+            turkSetAssignmentID("ASSIGNMENT_ID_NOT_AVAILABLE");
+          } else {
+            // Otherwise, hide the alert and allow submission
+            alert.hide();
+            turkSetAssignmentID(assignmentId);
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
