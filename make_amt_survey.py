@@ -1,17 +1,22 @@
+
 # Import the necessary libraries
 import argparse
 import boto3
 import random
 import pandas as pd
 import os
+import json
+
 
 # Define a function to parse the command line arguments
 def parse_args():
     # Create an argument parser object
     parser = argparse.ArgumentParser()
-    # Add arguments for the directory and the items file, with default values
+    # Add arguments for the directory, the items file, the credentials file, and the output file, with default values
     parser.add_argument("--directory", type=str, default="CCUB_eval", help="The directory containing the subfolders of images")
     parser.add_argument("--items", type=str, default="human_survey_items.csv", help="The file containing the item titles, texts, and types")
+    parser.add_argument("--credentials", type=str, default="credentials.csv", help="The file containing the AWS access key and secret key")
+    parser.add_argument("--output", type=str, default="output.json", help="The file to save the data and return values from the Amazon connection")
     # Parse the arguments and return them as a dictionary
     return vars(parser.parse_args())
 
@@ -292,9 +297,7 @@ def create_likert_layout(title, text, images):
     return hit_layout
 
 # Define a function to create a HIT type
-def create_hit_type(title, description, reward, duration, keywords):
-    # Create a boto3 client object for MTurk sandbox
-    client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com")
+def create_hit_type(title, description, reward, duration, keywords, client):
     # Call the create_hit_type method of the client object with the specified parameters
     response = client.create_hit_type(
         Title=title,
@@ -308,9 +311,7 @@ def create_hit_type(title, description, reward, duration, keywords):
     return hit_type_id
 
 # Define a function to create and upload a HIT
-def create_hit(hit_type_id, hit_layout, assignments):
-    # Create a boto3 client object for MTurk sandbox
-    client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com")
+def create_hit(hit_type_id, hit_layout, assignments, client):
     # Call the create_hit_with_hit_type method of the client object with the specified parameters
     response = client.create_hit_with_hit_type(
         HITTypeId=hit_type_id,
@@ -322,12 +323,26 @@ def create_hit(hit_type_id, hit_layout, assignments):
     hit_url = "https://workersandbox.mturk.com/mturk/preview?groupId=" + hit_type_id
     return hit_id, hit_url
 
+# Define a function to save the data and return values to a local file
+def save_data(output, data):
+    # Open the output file in append mode
+    with open(output, "a") as f:
+        # Write the data as a JSON string to the file
+        f.write(json.dumps(data) + "\n")
+
 # Define a main function
 def main():
     # Call the function to parse the command line arguments and store the result in a variable
     args = parse_args()
     # Call the function to read the items file and store the result in a variable
     items = read_items(args["items"])
+    # Read the credentials file and get the access key and secret key
+    with open(args["credentials"], "r") as f:
+        df = pd.read_csv(f)
+        access_key = df["Access key ID"][0]
+        secret_key = df["Secret access key"][0]
+    # Create a boto3 client object for MTurk sandbox using the access key and secret key
+    client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     # Loop through the items and do the following for each item:
     for item in items:
         # Create a HIT type with a suitable title, description, reward, duration, and keywords, and store the result in a variable
@@ -336,8 +351,11 @@ def main():
             description="Please rate the images according to the given criteria.",
             reward=0.1,
             duration=300,
-            keywords="image, rating, survey"
+            keywords="image, rating, survey",
+            client=client
         )
+        # Save the HIT type ID to the output file
+        save_data(args["output"], {"hit_type_id": hit_type_id})
         # Loop through the subfolders in the directory and do the following for each subfolder:
         for subfolder in os.listdir(args["directory"]):
             # Skip the items file
@@ -371,8 +389,11 @@ def main():
                 hit_id, hit_url = create_hit(
                     hit_type_id=hit_type_id,
                     hit_layout=hit_layout,
-                    assignments=10
+                    assignments=10,
+                    client=client
                 )
+                # Save the HIT ID and the HIT URL to the output file
+                save_data(args["output"], {"hit_id": hit_id, "hit_url": hit_url})
                 # Print the HIT ID and the URL of the HIT for verification
                 print(f"HIT ID: {hit_id}")
                 print(f"HIT URL: {hit_url}")
@@ -382,4 +403,3 @@ def main():
 # Call the main function
 if __name__ == "__main__":
     main()
-
