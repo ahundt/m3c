@@ -6,6 +6,7 @@ import random
 import pandas as pd
 import os
 import json
+from jinja2 import Template
 
 
 # Define a function to parse the command line arguments
@@ -19,9 +20,12 @@ def parse_args():
     parser.add_argument("--output", type=str, default="output.json", help="The file to save the data and return values from the Amazon connection")
     # Parse the arguments and return them as a dictionary
     return vars(parser.parse_args())
-
 # Define a function to read the items file
 def read_items(file):
+    # Check if the file exists
+    if not os.path.exists(file):
+        # Raise an exception
+        raise FileNotFoundError(f"File {file} not found")
     # Open the file in read mode
     with open(file, "r") as f:
         # Create a pandas data frame from the file
@@ -41,6 +45,10 @@ def read_items(file):
 
 # Define a function to read a country's csv file
 def read_country(file):
+    # Check if the file exists
+    if not os.path.exists(file):
+        # Raise an exception
+        raise FileNotFoundError(f"File {file} not found")
     # Open the file in read mode
     with open(file, "r") as f:
         # Create a pandas data frame from the file
@@ -58,241 +66,21 @@ def read_country(file):
 
 # Define a function to create a HIT layout for a rank item
 def create_rank_layout(title, text, images):
-    # Create an empty string to store the HIT layout
-    hit_layout = ""
-    # Add HTML code to the HIT layout to display the title and the text
-    hit_layout += f"<h1>{title}</h1>\n"
-    hit_layout += f"<p>{text}</p>\n"
-    # Shuffle the images using random.shuffle
-    random.shuffle(images)
-    # Add HTML and JavaScript code to the HIT layout to display the images in a random order and allow the user to drag and drop them to rank them
-    hit_layout += """
-    <style>
-    .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .image {
-      width: 200px;
-      height: 200px;
-      margin: 10px;
-      border: 1px solid black;
-    }
-
-    .number {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      font-size: 24px;
-      font-weight: bold;
-    }
-
-    .list {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      list-style: none;
-      padding: 0;
-    }
-
-    .item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin: 10px;
-      padding: 10px;
-      border: 1px solid black;
-      cursor: move;
-    }
-
-    .answer {
-      display: none;
-    }
-    </style>
-
-    <div class="container">
-      <h2>Drag and drop the images to rank them from best to worst</h2>
-      <ul class="list" id="list">
-    """
-    # Loop through the images and add HTML code to the HIT layout to display each image with a number
-    for i, image in enumerate(images):
-        hit_layout += f"""
-        <li class="item" id="{i+1}">
-          <span class="number">{i+1}</span>
-          <img class="image" src="{image}" alt="Image {i+1}">
-        </li>
-        """
-    # Add HTML and JavaScript code to the HIT layout to enable the drag and drop functionality and provide an ordered list of numbers as the answer
-    hit_layout += """
-      </ul>
-      <input class="answer" type="text" name="answer" id="answer" value="">
-    </div>
-
-    <script>
-    // Get the list element
-    var list = document.getElementById("list");
-    // Get the answer element
-    var answer = document.getElementById("answer");
-    // Create a new sortable object from the list element
-    var sortable = new Sortable(list, {
-      // Enable drag and drop
-      sort: true,
-      // Update the answer value when the order changes
-      onUpdate: function (evt) {
-        // Get the list items
-        var items = list.getElementsByTagName("li");
-        // Create an empty array to store the numbers
-        var numbers = [];
-        // Loop through the items and get the numbers
-        for (var i = 0; i < items.length; i++) {
-          var number = items[i].id;
-          numbers.push(number);
-        }
-        // Join the numbers with commas and set the answer value
-        answer.value = numbers.join(",");
-      },
-    });
-    </script>
-    """
+    # Load the rank template from a file
+    with open("rank_template.html", "r") as f:
+        template = Template(f.read())
+    # Render the template with the given parameters
+    hit_layout = template.render(title=title, text=text, images=images)
     # Return the HIT layout
     return hit_layout
 
 # Define a function to create a HIT layout for a likert item
 def create_likert_layout(title, text, images):
-    # Create an empty string to store the HIT layout
-    hit_layout = ""
-    # Add HTML code to the HIT layout to display the title and the text
-    hit_layout += f"<h1>{title}</h1>\n"
-    hit_layout += f"<p>{text}</p>\n"
-    # Add HTML and JavaScript code to the HIT layout to display the images and a 7-point likert scale for each image, from strongly disagree to strongly agree
-    hit_layout += """
-    <style>
-    .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .image {
-      width: 200px;
-      height: 200px;
-      margin: 10px;
-      border: 1px solid black;
-    }
-
-    .number {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      font-size: 24px;
-      font-weight: bold;
-    }
-
-    .table {
-      display: table;
-      border-collapse: collapse;
-      margin: 10px;
-    }
-
-    .row {
-      display: table-row;
-    }
-
-    .cell {
-      display: table-cell;
-      padding: 5px;
-      border: 1px solid black;
-      text-align: center;
-    }
-
-    .radio {
-      display: none;
-    }
-
-    .label {
-      display: block;
-      width: 100%;
-      height: 100%;
-      cursor: pointer;
-    }
-
-    .label:hover {
-      background-color: lightgray;
-    }
-
-    .radio:checked + .label {
-      background-color: gray;
-    }
-
-    .answer {
-      display: none;
-    }
-    </style>
-
-    <div class="container">
-      <h2>Select a rating for each image from 1 (strongly disagree) to 7 (strongly agree)</h2>
-      <div class="table">
-        <div class="row">
-          <div class="cell"></div>
-          <div class="cell">1</div>
-          <div class="cell">2</div>
-          <div class="cell">3</div>
-          <div class="cell">4</div>
-          <div class="cell">5</div>
-          <div class="cell">6</div>
-          <div class="cell">7</div>
-        </div>
-    """
-    # Loop through the images and add HTML code to the HIT layout to display each image with a number and a likert scale
-    for i, image in enumerate(images):
-        hit_layout += f"""
-        <div class="row">
-          <div class="cell"><img class="image" src="{image}" alt="Image {i+1}"><span class="number">{i+1}</span></div>
-        """
-        for j in range(1, 8):
-            hit_layout += f"""
-            <div class="cell">
-              <input class="radio" type="radio" name="rating{i+1}" id="rating{i+1}{j}" value="{j}">
-              <label class="label" for="rating{i+1}{j}"></label>
-            </div>
-            """
-        hit_layout += """
-        </div>
-        """
-    # Add HTML and JavaScript code to
-   # Add HTML and JavaScript code to the HIT layout to provide an ordered list of numbers as the answer
-    hit_layout += """
-        <input class="answer" type="text" name="answer" id="answer" value="">
-      </div>
-    </div>
-
-    <script>
-    // Get the answer element
-    var answer = document.getElementById("answer");
-    // Get the number of images
-    var n = {len(images)};
-    // Create an empty array to store the ratings
-    var ratings = [];
-    // Loop through the images and get the ratings
-    for (var i = 0; i < n; i++) {
-      // Get the radio buttons for each image
-      var radios = document.getElementsByName("rating" + (i + 1));
-      // Loop through the radio buttons and check which one is selected
-      for (var j = 0; j < radios.length; j++) {
-        if (radios[j].checked) {
-          // Add the rating to the array
-          ratings.push(radios[j].value);
-          // Break the loop
-          break;
-        }
-      }
-    }
-    // Join the ratings with commas and set the answer value
-    answer.value = ratings.join(",");
-    </script>
-    """
+    # Load the likert template from a file
+    with open("likert_template.html", "r") as f:
+        template = Template(f.read())
+    # Render the template with the given parameters
+    hit_layout = template.render(title=title, text=text, images=images)
     # Return the HIT layout
     return hit_layout
 

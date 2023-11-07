@@ -1,0 +1,115 @@
+<h1>{{ title }}</h1>
+<p>{{ text }}</p>
+<style>
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .image {
+    width: 200px;
+    height: 200px;
+    margin: 10px;
+    border: 1px solid black;
+  }
+
+  .number {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  .table {
+    display: table;
+    border-collapse: collapse;
+    margin: 10px;
+  }
+
+  .row {
+    display: table-row;
+  }
+
+  .cell {
+    display: table-cell;
+    padding: 5px;
+    border: 1px solid black;
+    text-align: center;
+  }
+
+  .radio {
+    display: none;
+  }
+
+  .label {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  .label:hover {
+    background-color: lightgray;
+  }
+
+  .radio:checked + .label {
+    background-color: gray;
+  }
+
+  .answer {
+    display: none;
+  }
+</style>
+<div class="container">
+  <h2>Select a rating for each image from 1 (strongly disagree) to 7 (strongly agree)</h2>
+  <div class="table">
+    <div class="row">
+      <div class="cell"></div>
+      <div class="cell">1</div>
+      <div class="cell">2</div>
+      <div class="cell">3</div>
+      <div class="cell">4</div>
+      <div class="cell">5</div>
+      <div class="cell">6</div>
+      <div class="cell">7</div>
+    </div>
+    {% for image in images %}
+    <div class="row">
+      <div class="cell"><img class="image" src="{{ image }}" alt="Image {{ loop.index }}"><span class="number">{{ loop.index }}</span></div>
+      {% for j in range(1, 8) %}
+      <div class="cell">
+        <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}{{ j }}" value="{{ j }}">
+        <label class="label" for="rating{{ loop.index }}{{ j }}"></label>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <input class="answer" type="text" name="answer" id="answer" value="">
+  </div>
+</div>
+<script>
+  // Get the answer element
+  var answer = document.getElementById("answer");
+  // Get the number of images
+  var n = {{ images|length }};
+  // Create an empty array to store the ratings
+  var ratings = [];
+  // Loop through the images and get the ratings
+  for (var i = 0; i < n; i++) {
+    // Get the radio buttons for each image
+    var radios = document.getElementsByName("rating" + (i + 1));
+    // Loop through the radio buttons and check which one is selected
+    for (var j = 0; j < radios.length; j++) {
+      if (radios[j].checked) {
+        // Add the rating to the array
+        ratings.push(radios[j].value);
+        // Break the loop
+        break;
+      }
+    }
+  }
+  // Join the ratings with commas and set the answer value
+  answer.value = ratings.join(",");
+</script>

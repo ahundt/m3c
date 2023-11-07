@@ -1,0 +1,83 @@
+<h1>{ { title }}</h1>
+<p>{ { text }}</p>
+<style>
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .image {
+    width: 200px;
+    height: 200px;
+    margin: 10px;
+    border: 1px solid black;
+  }
+
+  .number {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  .list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    list-style: none;
+    padding: 0;
+  }
+
+  .item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px;
+    padding: 10px;
+    border: 1px solid black;
+    cursor: move;
+  }
+
+  .answer {
+    display: none;
+  }
+</style>
+<div class="container">
+  <h2>Drag and drop the images to rank them from best to worst</h2>
+  <ul class="list" id="list">
+    {% for image in images %}
+    <li class="item" id="{{ loop.index }}">
+      <span class="number">{{ loop.index }}</span>
+      <img class="image" src="{{ image }}" alt="Image {{ loop.index }}">
+    </li>
+    {% endfor %}
+  </ul>
+  <input class="answer" type="text" name="answer" id="answer" value="">
+</div>
+<script>
+  // Get the list element
+  var list = document.getElementById("list");
+  // Get the answer element
+  var answer = document.getElementById("answer");
+  // Create a new sortable object from the list element
+  var sortable = new Sortable(list, {
+    // Enable drag and drop
+    sort: true,
+    // Update the answer value when the order changes
+    onUpdate: function (evt) {
+      // Get the list items
+      var items = list.getElementsByTagName("li");
+      // Create an empty array to store the numbers
+      var numbers = [];
+      // Loop through the items and get the numbers
+      for (var i = 0; i < items.length; i++) {
+        var number = items[i].id;
+        numbers.push(number);
+      }
+      // Join the numbers with commas and set the answer value
+      answer.value = numbers.join(",");
+    },
+  });
+</script>
