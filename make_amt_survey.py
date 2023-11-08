@@ -408,7 +408,7 @@ def main():
             print(f"HIT ID: {hit_id}")
             print(f"HIT URL: {hit_url}")
     # Print a message indicating that the program is done
-    print("The program is done.")
+    print(f"The program is done, with local data logs in {args["log_folder"]}.")
     
 # Call the main function
 if __name__ == "__main__":
