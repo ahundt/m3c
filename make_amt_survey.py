@@ -12,7 +12,6 @@ import datetime
 import glob
 
 
-# Define a function to parse the command line arguments
 def parse_args():
     # Create an argument parser object
     parser = argparse.ArgumentParser()
@@ -20,78 +19,123 @@ def parse_args():
     parser.add_argument("--directory", type=str, default="m3c_eval", help="The directory containing the subfolders of images")
     parser.add_argument("--items", type=str, default="human_survey_items.csv", help="The file containing the item titles, texts, and types")
     parser.add_argument("--credentials", type=str, default="credentials.csv", help="The file containing the AWS access key and secret key")
-    parser.add_argument("--run_data", type=str, default="run_data.json", help="The file to save the data and return values from the Amazon connection")
-    parser.add_argument("--bucket", type=str, default="m3c", help="The Amaxon S3 storage bucket name to upload the data to")
+    parser.add_argument("--bucket", type=str, default="m3c", help="The Amazon S3 storage bucket name to upload the data to")
+    
+    # Additional arguments for save and load function capabilities
+    parser.add_argument("--log_folder", type=str, default="logs", help="The folder where log files are stored")
+    parser.add_argument("--log_file_basename", type=str, default="log", help="The base name for the log file")
+    parser.add_argument("--description", type=str, default=None, help="A description of the run for future reference")
+    parser.add_argument("--resume", type=str, default=None, help="If set to a file path (str), resumes from the specified log file. If set to True (bool), loads the most recent log file. Defaults to None")
+    
     # Parse the arguments and return them as a dictionary
     return vars(parser.parse_args())
 
 
+def extract_timestamp_from_string(input_string):
+    """
+    Extract the first timestamp from a string using a regular expression.
+
+    Parameters:
+        input_string (str): The input string to search for a timestamp.
+
+    Returns:
+        str or None: The extracted timestamp if found, or None if not found.
+    """
+    match = re.search(r'(\d{4}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})', input_string)
+    if match:
+        return match.group(1)
+    else:
+        return None
+
+
 def save_and_load_dict_with_timestamp(data_dict={}, log_folder='logs', log_file_basename='log', description=None, save=True, resume=None):
     """
-    Save and load a dictionary to/from a JSON file with a timestamp and manage argument history.
+    Save and load a dictionary to/from a JSON file with a timestamp and preserve argument and timestamp history. The goal is to maintain records of changes made to the code, the command line arguments, and to system state in a way that is persistent across runs.
 
     Parameters:
         data_dict (dict): The dictionary to save or merge. You can use the 'args' key to store argument data.
         log_folder (str): The folder where log files are stored.
         log_file_basename (str): The base name for the log file.
         description (str, optional): A description of the run for future reference.
-        save (bool): Set to True to save the merged dictionary.
-        resume (str or bool): If set to a file path (str), resumes from the specified log file.
+        save (str, bool, or None): Set to True, a string path, or None to save the merged dictionary.
+        resume (str, bool, or None): If set to a file path (str), resumes from the specified log file.
             If set to True (bool), loads the most recent log file. Defaults to None.
 
     Returns:
-        Tuple: A tuple containing the merged dictionary and the path to the saved JSON file (if saving).
+        Tuple (dict, str or None): A tuple containing the merged dictionary and either None if not saving or the path to the saved JSON file if saving.
+
+    Examples:
+        # To save data for the first time
+        data = {'args': ['arg1', 'arg2'], 'dictionary': {'key1': 'value1', 'key2': 'value2'}}
+        updated_data, new_file_path = save_and_load_dict_with_timestamp(data, log_folder='logs', log_file_basename='data', save=True, resume=None)
+
+        # To resume from a specific log file
+        resumed_data, _ = save_and_load_dict_with_timestamp({}, log_folder='logs', log_file_basename='data', save=False, resume='2023_01_05_10_15_30_log.json')
+
+        # To load the most recent log file
+        latest_data, _ = save_and_load_dict_with_timestamp({}, log_folder='logs', log_file_basename='data', save=False, resume=True)
     """
     # Create the folder if it doesn't exist
     os.makedirs(log_folder, exist_ok=True)
 
-    # Generate a timestamp
-    timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
-
-    # Include the timestamp in the dictionary
-    data_dict['timestamp'] = timestamp
+    # Extract or generate the timestamp
+    timestamp = None
+    if 'timestamp' in data_dict:
+        timestamp = data_dict['timestamp']
+    elif isinstance(save, str) and len(save) > 19:
+        timestamp = extract_timestamp_from_string(save)
+    if timestamp is None:
+        timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
 
     # Include the description in the dictionary, if provided
     if description:
         data_dict['description'] = description
 
-    # Append the current args to the list of previous arguments
-    if 'args' in data_dict:
-        prev_args = data_dict.get('prev_args', [])
-        prev_args.append((timestamp, data_dict['args']))
-        data_dict['prev_args'] = prev_args
+    if resume:
+        # Determine the file path to load or resume from
+        if isinstance(resume, str):
+            load_file_path = os.path.join(log_folder, resume)
+        else:
+            existing_files = glob.glob(f'{log_folder}/*_{log_file_basename}.json')
 
-    # Determine the file path to load or resume from
-    if isinstance(resume, str):
-        load_file_path = os.path.join(log_folder, resume)
+            # Sort existing files based on the timestamp extracted from the filename
+            existing_files.sort(key=lambda x: datetime.datetime.strptime(extract_timestamp_from_string(x), '%Y_%m_%d_%H_%M_%S'), reverse=True)
+            
+            load_file_path = existing_files[0] if existing_files else None
+
+        # Load data from the selected log file, if available
+        if load_file_path and os.path exists(load_file_path):
+            try:
+                with open(load_file_path, 'r') as json_file:
+                    existing_data = json.load(json_file)
+                    existing_data['resume_args'] = data_dict['args']
+                    # Append the current args to the list of previous arguments
+                    if 'args' in existing_data:
+                        prev_args = existing_data.get('prev_args', [])
+                        prev_args.append((timestamp, data_dict['args']))
+                        existing_data['prev_args'] = prev_args
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"Error loading log file: {str(e)}")
     else:
-        existing_files = glob.glob(f'{log_folder}/{log_file_basename}_*.json')
+        existing_data = data_dict
 
-        # Sort existing files based on the timestamp in the filename
-        existing_files.sort(key=lambda x: datetime.datetime.strptime(x[len(log_folder)+1+len(log_file_basename):], '%Y_%m_%d_%H_%M_%S.json'), reverse=True)
-        
-        load_file_path = existing_files[0] if existing_files else None
-
-    # Load data from the selected log file, if available
-    if load_file_path and os.path exists(load_file_path):
-        try:
-            with open(load_file_path, 'r') as json_file:
-                existing_data = json.load(json_file)
-                data_dict['args'] = existing_data.get('args', [])
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Error loading log file: {str(e)}")
-    else:
-        existing_data = {}
-
-    # Merge the existing dictionary with the new data
-    existing_data.update(data_dict)
-
+    save_file_path = None
     # Save the merged dictionary with the timestamp
-    if save:
-        with open(load_file_path if resume else os.path.join(log_folder, f"{log_file_basename}_{timestamp}.json"), 'w') as json_file:
-            json.dump(existing_data, json_file, indent=4)
+    if save is not None:
+        # Generate the save_file_path based on the provided save parameter
+        if save is True:
+            save_file_path = os.path.join(log_folder, f"{timestamp}_{log_file_basename}.json")
+        elif isinstance(save, str):
+            save_file_path = save
 
-    return existing_data, load_file_path if save else None
+        # Backup the existing save_file_path if it exists
+        if save_file_path and os.path.exists(save_file_path):
+            backup_file_path = save_file_path.replace('.json', '_bkp.json')
+            shutil.copyfile(save_file_path, backup_file_path)
+            with open(save_file_path, 'w') as json_file:
+                json.dump(existing_data, json_file, indent=4)
+
+    return existing_data, save_file_path
 
 
 
@@ -279,14 +323,24 @@ def main():
     args = parse_args()
     # Call the function to read the items file and store the result in a variable
     items = read_items(args["items"])
-    log_data_dict = {'args': args}
-    save_and_load_dict_with_timestamp(log_data_dict)
-        
+    
     # Read the credentials file and get the access key and secret key
     with open(args["credentials"], "r") as f:
         df = pd.read_csv(f)
         access_key = df["Access key ID"][0]
         secret_key = df["Secret access key"][0]
+
+    # Initialize variables based on the command line and specified files on disk
+    log, save_file_path = save_and_load_dict_with_timestamp(
+        data_dict={},  # Provide your data dictionary here
+        log_folder=args['log_folder'],
+        log_file_basename=args['log_file_basename'],
+        description=args['description'],
+        resume=args['resume']
+    )
+
+    # load the current args from the logs
+    args = logs['args']
     # Create a boto3 client object for MTurk sandbox using the access key and secret key
     mturk_client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     # Create a boto3 client object for S3 using the access key and secret key
