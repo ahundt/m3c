@@ -323,12 +323,6 @@ def main():
     args = parse_args()
     # Call the function to read the items file and store the result in a variable
     items = read_items(args["items"])
-    
-    # Read the credentials file and get the access key and secret key
-    with open(args["credentials"], "r") as f:
-        df = pd.read_csv(f)
-        access_key = df["Access key ID"][0]
-        secret_key = df["Secret access key"][0]
 
     # Initialize variables based on the command line and specified files on disk
     log, save_file_path = save_and_load_dict_with_timestamp(
@@ -338,9 +332,17 @@ def main():
         description=args['description'],
         resume=args['resume']
     )
-
+    
     # load the current args from the logs
     args = logs['args']
+    
+    # Read the credentials file and get the access key and secret key
+    with open(args["credentials"], "r") as f:
+        df = pd.read_csv(f)
+        access_key = df["Access key ID"][0]
+        secret_key = df["Secret access key"][0]
+    
+    s3_bucket = args['bucket']
     # Create a boto3 client object for MTurk sandbox using the access key and secret key
     mturk_client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     # Create a boto3 client object for S3 using the access key and secret key
