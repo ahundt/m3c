@@ -315,6 +315,7 @@ def upload_to_s3(directory, s3_client, s3_bucket_name, s3_url_dict={}, s3_respon
                     print(f"S3 Upload An error occurred: {e}")
                 except FileNotFoundError:
                     print(f"S3 Upload Local file not found: {local_image_path}")
+    return s3_url_dict, s3_response_dict
 
 
 # Define a main function
@@ -347,8 +348,22 @@ def main():
     mturk_client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     # Create a boto3 client object for S3 using the access key and secret key
     s3_client = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+    eval_dir = args["directory"]
+    s3_url_dict, s3_response_dict = upload_to_s3(eval_dir, s3_client, args["bucket"])
+    log["s3_url_dict"] = s3_url_dict
+    log["s3_response_dict"] = s3_response_dict
+    
+    # save current progress to disk, s3 files have been uploaded
+    log, save_file_path = save_and_load_dict_with_timestamp(
+        data_dict=log,  # Provide your data dictionary here
+        log_folder=args['log_folder'],
+        log_file_basename=args['log_file_basename'],
+        description=args['description'],
+        resume=args['resume']
+    )
+
     # Loop through the items and do the following for each item:
-    subfolders = os.listdir(args["directory"])
+    subfolders = os.listdir()
     for subfolder in subfolders:
         # Create a HIT type with a suitable title, description, reward, duration, and keywords, and store the result in a variable
         # Call the create_hit_type method of the client object with the specified parameters
@@ -374,26 +389,8 @@ def main():
         for row in rows:
             # Set the random seed by combining the user id with the seed value from the row
             random.seed("user_id" + str(row["seed"]))
-            # Create an empty list to store the S3 object URLs of the images
-            s3_urls = []
-            # Loop through the images in the row and do the following for each image:
-            for image in row["images"]:
-                # Get the image URL from the local folder
-                image_url = os.path.join(args["directory"], subfolder, image)
-                # Get the image file name from the URL
-                image_file = os.path.basename(image_url)
-                # Upload the image to the S3 bucket and get the object URL
-                s3_url = upload_image(image_url, "my-bucket", image_file, s3_client)
-                # Append the object URL to the list of S3 object URLs
-                s3_urls.append(s3_url)
             # Call the function to create a HIT layout for a rank item using the S3 object URLs and store the result in a variable
-            hit_layout = create_rank_layout(
-                title=item["title"],
-                text=item["text"],
-                images=s3_urls
-            )
-            # Call the function to create a HIT layout for a likert item using the S3 object URLs and store the result in a variable
-            hit_layout = create_likert_layout(
+            hit_layout = create_survey_layout(
                 title=item["title"],
                 text=item["text"],
                 images=s3_urls
