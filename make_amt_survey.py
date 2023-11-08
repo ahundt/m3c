@@ -7,18 +7,93 @@ import os
 import json
 from jinja2 import Template
 import requests # Import the requests module
+import tqdm
+import datetime
+import glob
+
 
 # Define a function to parse the command line arguments
 def parse_args():
     # Create an argument parser object
     parser = argparse.ArgumentParser()
     # Add arguments for the directory, the items file, the credentials file, and the output file, with default values
-    parser.add_argument("--directory", type=str, default="CCUB_eval", help="The directory containing the subfolders of images")
+    parser.add_argument("--directory", type=str, default="m3c_eval", help="The directory containing the subfolders of images")
     parser.add_argument("--items", type=str, default="human_survey_items.csv", help="The file containing the item titles, texts, and types")
     parser.add_argument("--credentials", type=str, default="credentials.csv", help="The file containing the AWS access key and secret key")
-    parser.add_argument("--output", type=str, default="output.json", help="The file to save the data and return values from the Amazon connection")
+    parser.add_argument("--run_data", type=str, default="run_data.json", help="The file to save the data and return values from the Amazon connection")
+    parser.add_argument("--bucket", type=str, default="m3c", help="The Amaxon S3 storage bucket name to upload the data to")
     # Parse the arguments and return them as a dictionary
     return vars(parser.parse_args())
+
+
+def save_and_load_dict_with_timestamp(data_dict={}, log_folder='logs', log_file_basename='log', description=None, save=True, resume=None):
+    """
+    Save and load a dictionary to/from a JSON file with a timestamp and manage argument history.
+
+    Parameters:
+        data_dict (dict): The dictionary to save or merge. You can use the 'args' key to store argument data.
+        log_folder (str): The folder where log files are stored.
+        log_file_basename (str): The base name for the log file.
+        description (str, optional): A description of the run for future reference.
+        save (bool): Set to True to save the merged dictionary.
+        resume (str or bool): If set to a file path (str), resumes from the specified log file.
+            If set to True (bool), loads the most recent log file. Defaults to None.
+
+    Returns:
+        Tuple: A tuple containing the merged dictionary and the path to the saved JSON file (if saving).
+    """
+    # Create the folder if it doesn't exist
+    os.makedirs(log_folder, exist_ok=True)
+
+    # Generate a timestamp
+    timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+
+    # Include the timestamp in the dictionary
+    data_dict['timestamp'] = timestamp
+
+    # Include the description in the dictionary, if provided
+    if description:
+        data_dict['description'] = description
+
+    # Append the current args to the list of previous arguments
+    if 'args' in data_dict:
+        prev_args = data_dict.get('prev_args', [])
+        prev_args.append((timestamp, data_dict['args']))
+        data_dict['prev_args'] = prev_args
+
+    # Determine the file path to load or resume from
+    if isinstance(resume, str):
+        load_file_path = os.path.join(log_folder, resume)
+    else:
+        existing_files = glob.glob(f'{log_folder}/{log_file_basename}_*.json')
+
+        # Sort existing files based on the timestamp in the filename
+        existing_files.sort(key=lambda x: datetime.datetime.strptime(x[len(log_folder)+1+len(log_file_basename):], '%Y_%m_%d_%H_%M_%S.json'), reverse=True)
+        
+        load_file_path = existing_files[0] if existing_files else None
+
+    # Load data from the selected log file, if available
+    if load_file_path and os.path exists(load_file_path):
+        try:
+            with open(load_file_path, 'r') as json_file:
+                existing_data = json.load(json_file)
+                data_dict['args'] = existing_data.get('args', [])
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading log file: {str(e)}")
+    else:
+        existing_data = {}
+
+    # Merge the existing dictionary with the new data
+    existing_data.update(data_dict)
+
+    # Save the merged dictionary with the timestamp
+    if save:
+        with open(load_file_path if resume else os.path.join(log_folder, f"{log_file_basename}_{timestamp}.json"), 'w') as json_file:
+            json.dump(existing_data, json_file, indent=4)
+
+    return existing_data, load_file_path if save else None
+
+
 
 # Define a function to read the items file
 def read_items(file):
@@ -30,8 +105,6 @@ def read_items(file):
     with open(file, "r") as f:
         # Create a pandas data frame from the file
         df = pd.read_csv(f)
-        # Skip the header row
-        df = df.iloc[1:]
         # Create an empty list to store the items
         items = []
         # Loop through the rows in the data frame and do the following for each row:
@@ -64,39 +137,28 @@ def read_country(file):
     # Return the list of rows
     return rows
 
-# Define a function to create a HIT layout for a rank item
-def create_rank_layout(title, text, images):
-    # Load the rank template from a file
-    with open("rank_template.html", "r") as f:
+def create_survey_layout(items, row, template_filename="survey_template.html"):
+    # Load the survey template from a file
+    # "rank_template.html", "likert_template.html"
+    with open(template_filename, "r") as f:
         template = Template(f.read())
-    # Render the template with the given parameters
-    hit_layout = template.render(title=title, text=text, images=images)
+    # Render the template with the items and the row
+    # Loop through the items and add the images from the row
+    for item in items:
+        # Get the item type
+        item_type = item["type"]
+        # If the item type is "Rank", add the images from the row
+        if item_type == "Rank":
+            # Get the prompt from the item text
+            prompt = item["text"]
+            # Get the image URLs from the row based on the prompt
+            images = [row[prompt], row["Generic Stable Diffusion"], row["Pure Finetune"], row["Positive"], row["Contrastive"]]
+            # Add the images to the item
+            item["images"] = images
+    # Render the template with the items and the row
+    layout = template.render(items=items, title=row["prompt"], seed=row["seed"])
     # Return the HIT layout
-    return hit_layout
-
-# Define a function to create a HIT layout for a likert item
-def create_likert_layout(title, text, images):
-    # Load the likert template from a file
-    with open("likert_template.html", "r") as f:
-        template = Template(f.read())
-    # Render the template with the given parameters
-    hit_layout = template.render(title=title, text=text, images=images)
-    # Return the HIT layout
-    return hit_layout
-
-# Define a function to create a HIT type
-def create_hit_type(title, description, reward, duration, keywords, client):
-    # Call the create_hit_type method of the client object with the specified parameters
-    response = client.create_hit_type(
-        Title=title,
-        Description=description,
-        Reward=str(reward),
-        AssignmentDurationInSeconds=duration,
-        Keywords=keywords
-    )
-    # Extract the HIT type ID from the response and return it
-    hit_type_id = response["HITTypeId"]
-    return hit_type_id
+    return layout
 
 # Define a function to create and upload a HIT
 def create_hit(hit_type_id, hit_layout, assignments, client):
@@ -111,12 +173,6 @@ def create_hit(hit_type_id, hit_layout, assignments, client):
     hit_url = "https://workersandbox.mturk.com/mturk/preview?groupId=" + hit_type_id
     return hit_id, hit_url
 
-# Define a function to save the data and return values to a local file
-def save_data(output, data):
-    # Open the output file in append mode
-    with open(output, "a") as f:
-        # Write the data as a JSON string to the file
-        f.write(json.dumps(data) + "\n")
 
 # Define a function to upload an image to an S3 bucket and return the object URL
 def upload_image(url, bucket, key, client):
@@ -127,12 +183,105 @@ def upload_image(url, bucket, key, client):
     # Return the object URL
     return f"https://{bucket}.s3.amazonaws.com/{key}"
 
+
+def find_csv_files(directory):
+    """
+    Recursively finds and returns a list of CSV files in the given directory.
+
+    Parameters:
+        directory (str): The directory to search for CSV files.
+
+    Returns:
+        list of str: A list of full paths to CSV files found in the directory and its subdirectories.
+    """
+    return [os.path.join(root, file) for root, _, files in os.walk(directory) for file in files if file.endswith(".csv")]
+
+
+def find_valid_image_paths(df):
+    """
+    Finds and validates image file paths within a pandas DataFrame.
+
+    Parameters:
+        df (pandas.DataFrame): The DataFrame containing file paths.
+
+    Returns:
+        pandas.DataFrame: A DataFrame with boolean values indicating the validity of file paths.
+
+    This function applies a lambda function to each entry in the DataFrame, checking if each entry:
+    1. Is a string (file path).
+    2. Points to an existing file using os.path.isfile().
+    3. Ends with '.png' (case-insensitive).
+
+    The resulting DataFrame contains True for valid image paths and False for invalid paths.
+    """
+    return df.applymap(lambda entry: isinstance(entry, str) and os.path.isfile(entry) and entry.lower().endswith('.png'))
+
+
+def find_valid_images_in_csv_file_directory(directory):
+    """
+    Finds and returns a list of valid image file paths in the given directory.
+
+    Parameters:
+        directory (str): The directory to search for image files.
+
+    Returns:
+        list of str: A list of full paths to valid image files found in the directory and its subdirectories.
+    """
+    csv_files = find_csv_files(directory)
+
+    image_files = []
+    for csv_file in csv_files:
+        # Load the CSV file into a DataFrame using pandas
+        try:
+            df = pd.read_csv(csv_file)
+            # Call find_valid_image_paths on the DataFrame
+            image_files.extend(find_valid_image_paths(df))
+        except pd.errors.EmptyDataError:
+            print(f'empty csv file: {csv_file}')
+            pass  # Handle empty CSV files
+
+    return list(set(image_files))
+
+def upload_to_s3(directory, s3_client, s3_bucket_name, s3_url_dict={}, s3_response_dict={}):
+    # Create an empty list to store the S3 object URLs of the images
+    s3_urls = []
+    s3_dict = {}
+    if os.path.isfile(current_object_dict):
+        with open(current_object_dict_path, "r") as json_file:
+            s3_dict = json.load(json_file)
+    images = find_valid_images_in_csv_file_directory(directory)
+    if len(images):
+    # Loop through the images in the row and do the following for each image:
+    for image_path in images:
+        if image_path not in s3_url_dict:
+            s3_object_key = local_image_path
+            # List objects in the bucket with a prefix matching the object key
+            objects_exist_response = s3.list_objects(Bucket=s3_bucket_name, Prefix=s3_object_key)
+            # Check if the object exists in the list of objects
+            object_exists = any(obj['Key'] == s3_object_key for obj in response.get('Contents', []))
+            if not object_exists:
+                try:
+                    response = s3.upload_file(local_image_path, s3_bucket_name, s3_object_key)
+                    s3_response_dict[image_path] = response
+                    s3_url = response['ResponseMetadata']['HTTPHeaders']['location']
+                    s3_url_dict[image_path] = s3_url
+                except botocore.exceptions.EndpointConnectionError as e:
+                    print(f"S3 Upload Connection error: {e}")
+                except botocore.exceptions.ClientError as e:
+                    print(f"S3 Upload An error occurred: {e}")
+                except FileNotFoundError:
+                    print(f"S3 Upload Local file not found: {local_image_path}")
+
+
 # Define a main function
 def main():
     # Call the function to parse the command line arguments and store the result in a variable
     args = parse_args()
     # Call the function to read the items file and store the result in a variable
     items = read_items(args["items"])
+    log_data_dict = {'args': args}
+    save_and_load_dict_with_timestamp(log_data_dict)
+        
     # Read the credentials file and get the access key and secret key
     with open(args["credentials"], "r") as f:
         df = pd.read_csv(f)
@@ -143,85 +292,68 @@ def main():
     # Create a boto3 client object for S3 using the access key and secret key
     s3_client = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     # Loop through the items and do the following for each item:
-    for item in items:
+    subfolders = os.listdir(args["directory"])
+    for subfolder in subfolders:
         # Create a HIT type with a suitable title, description, reward, duration, and keywords, and store the result in a variable
-        hit_type_id = create_hit_type(
-            title=item["title"],
-            description="Please rate the images according to the given criteria.",
-            reward=0.1,
-            duration=300,
-            keywords="image, rating, survey",
-            client=mturk_client
+        # Call the create_hit_type method of the client object with the specified parameters
+        response = mturk_client.create_hit_type(
+            Title=item["title"],
+            Description="Please rate the images according to the given criteria.",
+            Reward=str(0.0),
+            AssignmentDurationInSeconds=30000,
+            Keywords="image, rating, survey",
         )
+        # Extract the HIT type ID from the response and return it
+        hit_type_id = response["HITTypeId"]
         # Save the HIT type ID to the output file
         save_data(args["output"], {"hit_type_id": hit_type_id})
         # Loop through the subfolders in the directory and do the following for each subfolder:
-        for subfolder in os.listdir(args["directory"]):
-            # Skip the items file
-            if subfolder == args["items"]:
-                continue
-            # Get the country name from the subfolder name
-            country = subfolder.split("-")[1]
-            # Get the country's csv file name
-            country_file = os.path.join(args["directory"], subfolder, country + "_files.csv")
-            # Call the function to read the country's csv file and store the result in a variable
-            rows = read_country(country_file)
-            # Loop through the rows in the csv file and do the following for each row:
-            for row in rows:
-                # Set the random seed by combining the user id with the seed value from the row
-                random.seed("user_id" + str(row["seed"]))
-                # If the item type is rank, call the function to create a HIT layout for a rank item and store the result in a variable
-                if item["type"] == "Rank":
-                    # Create an empty list to store the S3 object URLs of the images
-                    s3_urls = []
-                    # Loop through the images in the row and do the following for each image:
-                    for image in row["images"]:
-                        # Get the image URL from the local folder
-                        image_url = os.path.join(args["directory"], subfolder, image)
-                        # Get the image file name from the URL
-                        image_file = os.path.basename(image_url)
-                        # Upload the image to the S3 bucket and get the object URL
-                        s3_url = upload_image(image_url, "my-bucket", image_file, s3_client)
-                        # Append the object URL to the list of S3 object URLs
-                        s3_urls.append(s3_url)
-                    # Call the function to create a HIT layout for a rank item using the S3 object URLs and store the result in a variable
-                    hit_layout = create_rank_layout(
-                        title=item["title"],
-                        text=item["text"],
-                        images=s3_urls
-                    )
-                # If the item type is likert, call the function to create a HIT layout for a likert item and store the result in a variable
-                elif item["type"] == "Likert":
-                    # Create an empty list to store the S3 object URLs of the images
-                    s3_urls = []
-                    # Loop through the images in the row and do the following for each image:
-                    for image in row["images"]:
-                        # Get the image URL from the local folder
-                        image_url = os.path.join(args["directory"], subfolder, image)
-                        # Get the image file name from the URL
-                        image_file = os.path.basename(image_url)
-                        # Upload the image to the S3 bucket and get the object URL
-                        s3_url = upload_image(image_url, "my-bucket", image_file, s3_client)
-                        # Append the object URL to the list of S3 object URLs
-                        s3_urls.append(s3_url)
-                    # Call the function to create a HIT layout for a likert item using the S3 object URLs and store the result in a variable
-                    hit_layout = create_likert_layout(
-                        title=item["title"],
-                        text=item["text"],
-                        images=s3_urls
-                    )
-                # Call the function to create and upload a HIT with the HIT type ID, the HIT layout, and the number of assignments, and store the result in a variable
-                hit_id, hit_url = create_hit(
-                    hit_type_id=hit_type_id,
-                    hit_layout=hit_layout,
-                    assignments=10,
-                    client=mturk_client
-                )
-                # Save the HIT ID and the HIT URL to the output file
-                save_data(args["output"], {"hit_id": hit_id, "hit_url": hit_url})
-                # Print the HIT ID and the URL of the HIT for verification
-                print(f"HIT ID: {hit_id}")
-                print(f"HIT URL: {hit_url}")
+        # Get the country name from the subfolder name
+        country = subfolder.split("-")[1]
+        # Get the country's csv file name
+        country_file = os.path.join(args["directory"], subfolder, country + "_files.csv")
+        # Call the function to read the country's csv file and store the result in a variable
+        rows = read_country(country_file)
+        # Loop through the rows in the csv file and do the following for each row:
+        for row in rows:
+            # Set the random seed by combining the user id with the seed value from the row
+            random.seed("user_id" + str(row["seed"]))
+            # Create an empty list to store the S3 object URLs of the images
+            s3_urls = []
+            # Loop through the images in the row and do the following for each image:
+            for image in row["images"]:
+                # Get the image URL from the local folder
+                image_url = os.path.join(args["directory"], subfolder, image)
+                # Get the image file name from the URL
+                image_file = os.path.basename(image_url)
+                # Upload the image to the S3 bucket and get the object URL
+                s3_url = upload_image(image_url, "my-bucket", image_file, s3_client)
+                # Append the object URL to the list of S3 object URLs
+                s3_urls.append(s3_url)
+            # Call the function to create a HIT layout for a rank item using the S3 object URLs and store the result in a variable
+            hit_layout = create_rank_layout(
+                title=item["title"],
+                text=item["text"],
+                images=s3_urls
+            )
+            # Call the function to create a HIT layout for a likert item using the S3 object URLs and store the result in a variable
+            hit_layout = create_likert_layout(
+                title=item["title"],
+                text=item["text"],
+                images=s3_urls
+            )
+            # Call the function to create and upload a HIT with the HIT type ID, the HIT layout, and the number of assignments, and store the result in a variable
+            hit_id, hit_url = create_hit(
+                hit_type_id=hit_type_id,
+                hit_layout=hit_layout,
+                assignments=10,
+                client=mturk_client
+            )
+            # Save the HIT ID and the HIT URL to the output file
+            save_data(args["output"], {"hit_id": hit_id, "hit_url": hit_url})
+            # Print the HIT ID and the URL of the HIT for verification
+            print(f"HIT ID: {hit_id}")
+            print(f"HIT URL: {hit_url}")
     # Print a message indicating that the program is done
     print("The program is done.")
     
