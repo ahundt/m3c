@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>{{ title }}</title>
+  <title>Survey for {{ country }}</title>
   <!-- Load jQuery, jQuery UI, and Bootstrap from CDN -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
@@ -72,6 +72,16 @@
       display: none;
     }
 
+    .likert {
+      display: flex;
+      justify-content: space-between;
+      margin: 10px;
+    }
+
+    .likert input {
+      margin: 0 5px;
+    }
+
     .alert {
       display: none;
     }
@@ -82,32 +92,28 @@
     <div class="container">
       {% for item in items %}
         <div class="item">
-          <h2>{{ item.title }}</h2>
-          <p>{{ item.text }}</p>
-          {% if item.type == "Rank" %}
+          <h2>{{ item['Item Title'] }}</h2>
+          <p>{{ item['Item Text'] }}</p>
+          {% if item['Item Type'] == 'Rank' %}
             <div class="sortable">
-              {% for image in item.images %}
-                <div class="image" data-id="{{ loop.index }}">
-                  <img src="{{ image }}" alt="Image {{ loop.index }}">
-                  <span class="number">{{ loop.index }}</span>
+              {% for i in range(1, item['Number of Images'] + 1) %}
+                <div data-id="{{ i }}" class="image">
+                  <span class="number">{{ i }}</span>
+                  <img src="{{ item['Image' ~ i] }}" alt="Image {{ i }}">
                 </div>
               {% endfor %}
             </div>
-            <input class="answer" type="text" name="answer{{ loop.index }}" id="answer{{ loop.index }}" value="">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-              Please rank all the images before submitting.
-              <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">×</span>
-              </button>
-            </div>
-          {% elif item.type == "Likert" %}
-            <div class="rating">
-              {% for i in range(1, 8) %}
-                <input class="radio" type="radio" name="rating{{ loop.index }}" id="rating{{ loop.index }}-{{ i }}" value="{{ i }}">
-                <label class="label" for="rating{{ loop.index }}-{{ i }}">{{ i }}</label>
+            <input type="hidden" class="answer" name="answer_{{ loop.index }}" value="">
+            <div class="alert">Please rank all images.</div>
+          {% elif item['Item Type'] == 'Likert' %}
+            <div class="likert">
+              {% for i in range(1, item['Likert Steps'] + 1) %}
+                <label>{{ i }}<input type="radio" class="radio" name="answer_{{ loop.index }}" value="{{ i }}"></label>
               {% endfor %}
             </div>
+            <div class="alert">Please select a rating.</div>
           {% endif %}
+          <!-- Add conditions for other item types if needed -->
         </div>
       {% endfor %}
     </div>
@@ -174,6 +180,25 @@
             alert.hide();
             turkSetAssignmentID(assignmentId);
           }
+        });
+      } else if (type == "likert") {
+        // Get the likert element, the answer element, and the alert element
+        var likert = $(this).find(".likert");
+        var answer = $(this).find(".answer");
+        var alert = $(this).find(".alert");
+        // Validate the answer before submitting
+        likert.on("change", function() {
+          // If the answer is empty or incomplete, show the alert and prevent submission
+          if (likert.find(":checked").length === 0) {
+            alert.show();
+            turkSetAssignmentID("ASSIGNMENT_ID_NOT_AVAILABLE");
+          } else {
+            // Otherwise, hide the alert and allow submission
+            alert.hide();
+            turkSetAssignmentID(assignmentId);
+          }
+          // Update the answer value
+          answer.val(likert.find(":checked").val() || "");
         });
       }
     });

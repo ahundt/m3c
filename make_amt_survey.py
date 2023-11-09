@@ -4,96 +4,77 @@ import pandas as pd
 import os
 from jinja2 import Template
 from tqdm import tqdm
-import util
+from util import find_csv_files, save_and_load_dict_with_timestamp
 
 def parse_args():
-    # Create an argument parser object
     parser = argparse.ArgumentParser()
-    # Add arguments for the directory, the items file, the credentials file, and the output file, with default values
     parser.add_argument("--directory", type=str, default="m3c_eval", help="The directory containing the subfolders of images")
     parser.add_argument("--items", type=str, default="human_survey_items.csv", help="The file containing the item titles, texts, and types")
-    parser.add_argument("--credentials", type=str, default="credentials.csv", help="The file containing the AWS access key and secret key")
-    parser.add_argument("--bucket", type=str, default="m3c", help="The Amazon S3 storage bucket name to upload the data to")
+    parser.add_argument("--item_template", type=str, default="survey_template.html", help="The file containing the survey HTML template")
+    parser.add_argument("--output_folder", type=str, default="output_surveys", help="The folder to save the generated surveys")
     parser.add_argument("--url_prefix", type=str, default="https://raw.githubusercontent.com/ahundt/m3c_eval/main", help="Options are: github")
-    parser.add_argument("--output_folder", type=str, default="output", help="The folder to save the output files")
-    
-    # Additional arguments for save and load function capabilities
     parser.add_argument("--log_folder", type=str, default="logs", help="The folder where log files are stored")
     parser.add_argument("--log_file_basename", type=str, default="log", help="The base name for the log file")
     parser.add_argument("--description", type=str, default=None, help="A description of the run for future reference")
     parser.add_argument("--resume", type=str, default=None, help="If set to a file path (str), resumes from the specified log file. If set to True (bool), loads the most recent log file. Defaults to None")
-    
-    # Parse the arguments and return them as a dictionary
     return vars(parser.parse_args())
 
-def load_country_csv(country, directory):
-    csv_path = os.path.join(directory, f"{country}_files.csv")
-    try:
-        df = pd.read_csv(csv_path)
-        return df
-    except pd.errors.EmptyDataError:
-        print(f'empty csv file: {csv_path}')
-        return None
+def process_country_survey(item_template, items_df, country_csv, output_folder, url_prefix):
+    # Load country-specific file containing prompt, images, and seed
+    country_df = pd.read_csv(country_csv)
 
-def process_country_survey(country, items_df, directory, url_prefix, output_folder):
-    # Load the country-specific CSV file
-    country_df = load_country_csv(country, directory)
-    if country_df is None:
-        return
+    # Get country name from the file path
+    country = os.path.splitext(os.path.basename(country_csv))[0].split('_')[0]
 
-    # Modify the dataframe to be ready for Mechanical Turk
+    # Update paths to web addresses using --url_prefix
     for column in country_df.columns:
         if country_df[column].dtype == 'O' and country_df[column].str.lower().str.endswith('.png').any():
             # Modify columns with PNG files
             country_df[column] = url_prefix + '/' + country_df[column]
 
-    # Save the modified CSV to a new location
-    output_csv_path = os.path.join(output_folder, f"{country}_survey.csv")
-    country_df.to_csv(output_csv_path, index=False)
+    # Merge country-specific file with items_df
+    survey_df = pd.merge(items_df, country_df, left_on="Item Title", right_on="prompt", how="inner")
 
-    # Load the survey template
-    with open('survey_template.html', 'r') as template_file:
-        template_content = template_file.read()
+    # Generate HTML and CSV files for the survey
+    survey_html_path, survey_csv_path = generate_survey_html(item_template, survey_df, country, output_folder)
 
-    # Create a Jinja template from the content
-    template = Template(template_content)
+    return survey_html_path, survey_csv_path
 
-    # Render the template with the country-specific data
-    rendered_html = template.render(title=f"Survey for {country}", items=items_df.to_dict('records'))
+def generate_survey_html(item_template, survey_df, country, output_folder):
+    # Load the Jinja2 template
+    template = Template(item_template)
 
-    # Save the rendered HTML to a new location
-    output_html_path = os.path.join(output_folder, f"{country}_survey.html")
-    with open(output_html_path, 'w') as html_file:
-        html_file.write(rendered_html)
-
-def main():
-    # Call the function to parse the command line arguments and store the result in a variable
-    args = parse_args()
+    # Render the template with the provided data
+    survey_html = template.render(items=survey_df.to_dict(orient="records"), country=country)
 
     # Create the output folder if it does not exist
-    os.makedirs(args['output_folder'], exist_ok=True)
+    os.makedirs(output_folder, exist_ok=True)
 
-    # Initialize variables based on the command line and specified files on disk
-    log, save_file_path = util.save_and_load_dict_with_timestamp(
-        data_dict={},  # Provide your data dictionary here
-        log_folder=args['log_folder'],
-        log_file_basename=args['log_file_basename'],
-        description=args['description'],
-        resume=args['resume']
-    )
+    # Save the rendered HTML to a file
+    output_file_path = os.path.join(output_folder, f"{country}_survey.html")
+    with open(output_file_path, "w", encoding="utf-8") as output_file:
+        output_file.write(survey_html)
 
-    # Load the items CSV
-    items_df = pd.read_csv(args['items'])
+    # Save the survey DataFrame to a CSV file
+    csv_output_file_path = os.path.join(output_folder, f"{country}_survey.csv")
+    survey_df.to_csv(csv_output_file_path, index=False)
 
-    # Loop through each country
-    for country_folder in tqdm(os.listdir(args['directory']), desc="Processing Countries"):
-        country_path = os.path.join(args['directory'], country_folder)
-        
-        # Ensure it's a directory
-        if os.path.isdir(country_path):
-            # Process the country-specific survey
-            process_country_survey(country_folder, items_df, country_path, args['url_prefix'], args['output_folder'])
+    return output_file_path, csv_output_file_path
 
-# Call the main function
+def main():
+    args = parse_args()
+
+    # Load items CSV
+    items_df = pd.read_csv(args["items"])
+
+    # Process surveys for each country
+    for country_csv in tqdm(find_csv_files(args["directory"]), desc="Processing Countries"):
+        # Process the country survey
+        survey_html_path, survey_csv_path = process_country_survey(args["item_template"], items_df, country_csv, args["output_folder"], args["url_prefix"])
+
+        # Print paths to generated files
+        print(f"Generated HTML file: {survey_html_path}")
+        print(f"Generated CSV file: {survey_csv_path}")
+
 if __name__ == "__main__":
     main()
