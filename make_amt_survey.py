@@ -70,9 +70,12 @@ def main():
     # Call the function to parse the command line arguments and store the result in a variable
     args = parse_args()
 
+    # Create the output folder if it does not exist
+    os.makedirs(args['output_folder'], exist_ok=True)
+
     # Initialize variables based on the command line and specified files on disk
     log, save_file_path = util.save_and_load_dict_with_timestamp(
-        data_dict={'args': args},  # Provide your data dictionary here
+        data_dict={},  # Provide your data dictionary here
         log_folder=args['log_folder'],
         log_file_basename=args['log_file_basename'],
         description=args['description'],
