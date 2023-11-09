@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument("--items", type=str, default="human_survey_items.csv", help="The file containing the item titles, texts, and types")
     parser.add_argument("--credentials", type=str, default="credentials.csv", help="The file containing the AWS access key and secret key")
     parser.add_argument("--bucket", type=str, default="m3c", help="The Amazon S3 storage bucket name to upload the data to")
+    parser.add_argument("--url_prefix", type=str, default="https://raw.githubusercontent.com/ahundt/m3c_eval/main", help="Options are: github")
     
     # Additional arguments for save and load function capabilities
     parser.add_argument("--log_folder", type=str, default="logs", help="The folder where log files are stored")
@@ -104,7 +105,7 @@ def save_and_load_dict_with_timestamp(data_dict={}, log_folder='logs', log_file_
             load_file_path = existing_files[0] if existing_files else None
 
         # Load data from the selected log file, if available
-        if load_file_path and os.path exists(load_file_path):
+        if load_file_path and os.path.exists(load_file_path):
             try:
                 with open(load_file_path, 'r') as json_file:
                     existing_data = json.load(json_file)
@@ -218,16 +219,6 @@ def create_hit(hit_type_id, hit_layout, assignments, client):
     return hit_id, hit_url
 
 
-# Define a function to upload an image to an S3 bucket and return the object URL
-def upload_image(url, bucket, key, client):
-    # Get the raw data of the image from the URL
-    r = requests.get(url, stream=True)
-    # Upload the file-like object to the S3 bucket
-    client.upload_fileobj(r.raw, bucket, key)
-    # Return the object URL
-    return f"https://{bucket}.s3.amazonaws.com/{key}"
-
-
 def find_csv_files(directory):
     """
     Recursively finds and returns a list of CSV files in the given directory.
@@ -294,7 +285,7 @@ def upload_to_s3(directory, s3_client, s3_bucket_name, s3_url_dict={}, s3_respon
         with open(current_object_dict_path, "r") as json_file:
             s3_dict = json.load(json_file)
     images = find_valid_images_in_csv_file_directory(directory)
-    if len(images):
+    # if len(images): # TODO wanted to check if there are images, then do some check
     # Loop through the images in the row and do the following for each image:
     for image_path in images:
         if image_path not in s3_url_dict:
@@ -317,13 +308,14 @@ def upload_to_s3(directory, s3_client, s3_bucket_name, s3_url_dict={}, s3_respon
                     print(f"S3 Upload Local file not found: {local_image_path}")
     return s3_url_dict, s3_response_dict
 
+def create_survey_github_and_amt(args, log, save_file_path):
+    return
+    
 
 # Define a main function
 def main():
     # Call the function to parse the command line arguments and store the result in a variable
     args = parse_args()
-    # Call the function to read the items file and store the result in a variable
-    items = read_items(args["items"])
 
     # Initialize variables based on the command line and specified files on disk
     log, save_file_path = save_and_load_dict_with_timestamp(
@@ -336,7 +328,17 @@ def main():
     
     # load the current args from the logs
     args = logs['args']
-    
+    eval_dir = args["directory"]
+    platform = 'github'
+    if os.path.exists(args['credentials']):
+        platform = 's3'
+
+    if platform == 'github':
+        create_survey_github_and_amt(args, log, items)
+
+    # S3 case, the following code is buggy.
+    # Call the function to read the items file and store the result in a variable
+    items = read_items(args["items"])
     # Read the credentials file and get the access key and secret key
     with open(args["credentials"], "r") as f:
         df = pd.read_csv(f)
@@ -348,7 +350,6 @@ def main():
     mturk_client = boto3.client("mturk", endpoint_url="https://mturk-requester-sandbox.us-east-1.amazonaws.com", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     # Create a boto3 client object for S3 using the access key and secret key
     s3_client = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
-    eval_dir = args["directory"]
     s3_url_dict, s3_response_dict = upload_to_s3(eval_dir, s3_client, args["bucket"])
     log["s3_url_dict"] = s3_url_dict
     log["s3_response_dict"] = s3_response_dict
@@ -363,7 +364,7 @@ def main():
     )
 
     # Loop through the items and do the following for each item:
-    subfolders = os.listdir()
+    subfolders = os.listdir(eval_dir)
     for subfolder in subfolders:
         # Create a HIT type with a suitable title, description, reward, duration, and keywords, and store the result in a variable
         # Call the create_hit_type method of the client object with the specified parameters
