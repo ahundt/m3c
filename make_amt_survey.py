@@ -43,7 +43,7 @@ def process_country_survey(item_template, items_df, country_csv, output_folder, 
 def generate_survey_html(item_template, survey_df, country, output_folder):
     # Load the Jinja2 template
     template = Template(item_template)
-
+    print(f'dataframe: {survey_df}')
     # Render the template with the provided data
     survey_html = template.render(items=survey_df.to_dict(orient="records"), country=country)
 
