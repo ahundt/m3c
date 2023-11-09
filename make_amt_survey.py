@@ -2,10 +2,8 @@
 import argparse
 import pandas as pd
 import os
-import json
 from jinja2 import Template
 from tqdm import tqdm
-import datetime
 import util
 
 def parse_args():
@@ -17,6 +15,7 @@ def parse_args():
     parser.add_argument("--credentials", type=str, default="credentials.csv", help="The file containing the AWS access key and secret key")
     parser.add_argument("--bucket", type=str, default="m3c", help="The Amazon S3 storage bucket name to upload the data to")
     parser.add_argument("--url_prefix", type=str, default="https://raw.githubusercontent.com/ahundt/m3c_eval/main", help="Options are: github")
+    parser.add_argument("--output_folder", type=str, default="output", help="The folder to save the output files")
     
     # Additional arguments for save and load function capabilities
     parser.add_argument("--log_folder", type=str, default="logs", help="The folder where log files are stored")
@@ -36,7 +35,7 @@ def load_country_csv(country, directory):
         print(f'empty csv file: {csv_path}')
         return None
 
-def process_country_survey(country, items_df, directory, url_prefix):
+def process_country_survey(country, items_df, directory, url_prefix, output_folder):
     # Load the country-specific CSV file
     country_df = load_country_csv(country, directory)
     if country_df is None:
@@ -49,7 +48,7 @@ def process_country_survey(country, items_df, directory, url_prefix):
             country_df[column] = url_prefix + '/' + country_df[column]
 
     # Save the modified CSV to a new location
-    output_csv_path = os.path.join(directory, f"{country}_survey.csv")
+    output_csv_path = os.path.join(output_folder, f"{country}_survey.csv")
     country_df.to_csv(output_csv_path, index=False)
 
     # Load the survey template
@@ -63,7 +62,7 @@ def process_country_survey(country, items_df, directory, url_prefix):
     rendered_html = template.render(title=f"Survey for {country}", items=items_df.to_dict('records'))
 
     # Save the rendered HTML to a new location
-    output_html_path = os.path.join(directory, f"{country}_survey.html")
+    output_html_path = os.path.join(output_folder, f"{country}_survey.html")
     with open(output_html_path, 'w') as html_file:
         html_file.write(rendered_html)
 
@@ -90,7 +89,7 @@ def main():
         # Ensure it's a directory
         if os.path.isdir(country_path):
             # Process the country-specific survey
-            process_country_survey(country_folder, items_df, country_path, args['url_prefix'])
+            process_country_survey(country_folder, items_df, country_path, args['url_prefix'], args['output_folder'])
 
 # Call the main function
 if __name__ == "__main__":
