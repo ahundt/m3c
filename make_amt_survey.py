@@ -122,7 +122,7 @@ def generate_survey_template(
     crowd_form = f"""
         <crowd-form>
             <div>
-                <h3>{consent_title}</h3>
+                <h3>{consent_title} about Image Generators and {country_name}</h3>
                 <p>{consent_text}</p>
                 <!--<p>Your Mechanical Turk Worker ID will be used to distribute the payment to you, but we will not store your worker ID with your survey responses. Please be aware that your Mturk Workers ID can potentially be linked to information about you on your Amazon Public Profile page, however we will not access any personally identifying information from your Amazon Public Profile.</p>-->
                 <p>
