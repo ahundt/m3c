@@ -58,9 +58,23 @@ If you're using our default example and you've cloned like above the following s
 python3 make_amt_survey --directory ../m3c_eval
 ```
 
-This will generate survey csv and html files in the folder `output_folder`.
+This will generate survey csv and html files in the folder `output_surveys` here is a sample directory layout:
 
-These are the files you provide to amazon mechanical turk on their website.
+```
+├── output_surveys
+│   ├── China_survey.csv
+│   ├── China_survey.html
+│   ├── India_survey.csv
+│   ├── India_survey.html
+│   ├── Korea_survey.csv
+│   ├── Korea_survey.html
+│   ├── Mexico_survey.csv
+│   ├── Mexico_survey.html
+│   ├── Nigeria_survey.csv
+│   └── Nigeria_survey.html
+```
+
+These are the files you provide to amazon mechanical turk on their website, we generate separate surveys for each country in this example.
 
 
 Here is a larger example of the various options you can configure:
