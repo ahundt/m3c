@@ -77,7 +77,7 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     # Process data and render the template
     rendered_template = template.render(
         country=country_name,
-        items=items,
+        survey_items=survey_items,
         number_of_images=number_of_images,
         number_of_survey_items=len(survey_items_data),
     )
