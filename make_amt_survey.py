@@ -81,6 +81,7 @@ def generate_survey_template(
     png_column_headers = get_png_column_headers(country_df)
     number_of_images = len(png_column_headers)
     number_of_items = len(survey_items_df)
+    country_df['country'] = country_name
 
     # Create a Jinja2 environment
     env = Environment(loader=FileSystemLoader('.'))
