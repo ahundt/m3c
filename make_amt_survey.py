@@ -19,6 +19,8 @@ def parse_args():
     parser.add_argument("--resume", type=str, default=None, help="If set to a file path (str), resumes from the specified log file. If set to True (bool), loads the most recent log file. Defaults to None")
     parser.add_argument("--short_instructions", type=str, default="For each row, enter different numbers under each image to rank from best to worst.", help="Short instructions for the survey")
     parser.add_argument("--full_instructions", type=str, default="For each row, enter different numbers in the white box under each image to rank from best (1) to worst (same as the total number of images). The lowest number 1 is always the best outcome, such as less offensive, a more accurate description, or fewer artifacts. If you are unsure, you can skip the item by leaving it blank.", help="Full instructions for the survey")
+    parser.add_argument("--consent_title", type=str, default="Consent to Participate in a Research Study", help="Title for the consent form")
+    parser.add_argument("--consent_text", type=str, default="You are being asked to participate in a research study being conducted by the Bot Intelligence Group at Carnegie Mellon University. Participation is voluntary. The purpose of this study is to understand ways to represent culture in AI - generated images.  Any reports and presentations about the findings from this study will not include your name or any other information that could identify you.")
     return vars(parser.parse_args())
 
 
@@ -61,7 +63,16 @@ def format_for_mturk_substitution(number_of_images):
     return [f"img{i+1}" for i in range(number_of_images)]
 
 
-def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys", url_prefix="https://raw.githubusercontent.com/ahundt/m3c_eval/main"):
+def generate_survey_template(
+        country_csv_file, 
+        survey_items_csv, 
+        template_html, 
+        short_instructions, 
+        full_instructions, 
+        output_folder="output_surveys", 
+        url_prefix="https://raw.githubusercontent.com/ahundt/m3c_eval/main",
+        consent_title="Consent to Participate in a Research Study",
+        consent_text="You are being asked to participate in a research study being conducted by the Bot Intelligence Group at Carnegie Mellon University. Participation is voluntary. The purpose of this study is to understand ways to represent culture in AI - generated images.  Any reports and presentations about the findings from this study will not include your name or any other information that could identify you."):
     country_df = pd.read_csv(country_csv_file, quotechar='"')
     survey_items_df = pd.read_csv(survey_items_csv, quotechar='"')
     country_name = get_country_name(country_csv_file)
@@ -109,8 +120,8 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     crowd_form = f"""
         <crowd-form>
             <div>
-                <h3>Consent Form</h3>
-                <p>You are being asked to participate in a research study being conducted by the Bot Intelligence Group at Carnegie Mellon University.  Participation is voluntary.  The purpose of this study is to understand ways to represent culture in AI - generated images.  Any reports and presentations about the findings from this study will not include your name or any other information that could identify you.</p>
+                <h3>{consent_title}</h3>
+                <p>{consent_text}</p>
                 <!--<p>Your Mechanical Turk Worker ID will be used to distribute the payment to you, but we will not store your worker ID with your survey responses. Please be aware that your Mturk Workers ID can potentially be linked to information about you on your Amazon Public Profile page, however we will not access any personally identifying information from your Amazon Public Profile.</p>-->
                 <p>
                     <label for="consent" style="color:red;"><b>By submitting answers to this survey, you are agreeing to particpate in this study</b></label>
@@ -184,7 +195,10 @@ def main():
             short_instructions=args["short_instructions"], 
             full_instructions=args["full_instructions"], 
             output_folder=args["output_folder"],
-            url_prefix=args["url_prefix"])
+            url_prefix=args["url_prefix"],
+            consent_title=args["consent_title"],
+            consent_text=args["consent_text"]
+            )
 
         # Print paths to generated files
         print(f"Generated HTML file: {survey_html_path}")
