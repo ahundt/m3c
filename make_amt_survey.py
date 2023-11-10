@@ -2,7 +2,7 @@
 import argparse
 import pandas as pd
 import os
-from jinja2 import Template
+from jinja2 import Template, Environment, FileSystemLoader
 from tqdm import tqdm
 from util import find_csv_files, save_and_load_dict_with_timestamp
 
@@ -17,49 +17,137 @@ def parse_args():
     parser.add_argument("--log_file_basename", type=str, default="log", help="The base name for the log file")
     parser.add_argument("--description", type=str, default=None, help="A description of the run for future reference")
     parser.add_argument("--resume", type=str, default=None, help="If set to a file path (str), resumes from the specified log file. If set to True (bool), loads the most recent log file. Defaults to None")
+    parser.add_argument("--short_instructions", type=str, default="Drag and drop the images to rank them from most to least relevant.", help="Short instructions for the survey")
+    parser.add_argument("--full_instructions", type=str, default="Drag and drop the images to rank them from most to least relevant. If you are unsure, you can skip the item.", help="Full instructions for the survey")
     return vars(parser.parse_args())
 
-def process_country_survey(item_template, items_df, country_csv, output_folder, url_prefix):
-    # Load country-specific file containing prompt, images, and seed
-    country_df = pd.read_csv(country_csv)
 
+def get_png_column_headers(dataframe):
+    """
+    Get the headers of columns containing ".png" paths in the first row of the DataFrame.
+
+    Parameters:
+    - dataframe: pandas DataFrame
+
+    Returns:
+    - List of headers for columns containing ".png" paths
+    """
+    # Get the first row of the DataFrame
+    first_row = dataframe.iloc[0]
+
+    # Find columns containing ".png" paths
+    png_columns = [col for col in dataframe.columns if ".png" in str(first_row[col])]
+
+    # Return the headers for columns containing ".png" paths
+    return png_columns
+
+
+def get_country_name(country_csv_file):
     # Get country name from the file path
-    country = os.path.splitext(os.path.basename(country_csv))[0].split('_')[0]
+    country = os.path.splitext(os.path.basename(country_csv_file))[0].split('_')[0]
+    return country
 
+
+def update_image_paths(country_df, url_prefix):
     # Update paths to web addresses using --url_prefix
-    for column in country_df.columns:
-        if country_df[column].dtype == 'O' and country_df[column].str.lower().str.endswith('.png').any():
-            # Modify columns with PNG files
-            country_df[column] = url_prefix + '/' + country_df[column]
+    png_columns = get_png_column_headers(country_df)
+    for column in png_columns:
+        country_df[column] = url_prefix + '/' + country_df[column]
+    return country_df
 
-    # Merge country-specific file with items_df
-    survey_df = pd.merge(items_df, country_df, left_on="Item Title", right_on="prompt", how="inner")
 
-    # Generate HTML and CSV files for the survey
-    survey_html_path, survey_csv_path = generate_survey_html(item_template, survey_df, country, output_folder)
+def format_for_mturk_substitution(number_of_images):
+    # Format the strings for Amazon Mechanical Turk substitution
+    return [f"image{i+1}" for i in range(number_of_images)]
 
-    return survey_html_path, survey_csv_path
 
-def generate_survey_html(item_template, survey_df, country, output_folder):
-    # Load the Jinja2 template
-    template = Template(item_template)
-    print(f'dataframe: {survey_df}')
-    # Render the template with the provided data
-    survey_html = template.render(items=survey_df.to_dict(orient="records"), country=country)
+def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys"):
+    country_df = pd.read_csv(country_csv_file, quotechar='"')
+    survey_items_df = pd.read_csv(survey_items_csv, quotechar='"')
+    country_name = get_country_name(country_csv_file)
+    png_column_headers = get_png_column_headers(country_df)
+    number_of_images = len(png_column_headers)
+    print(f'survey_items_df: {survey_items_df}')
+    print(f'country_df: {country_df}')
 
-    # Create the output folder if it does not exist
-    os.makedirs(output_folder, exist_ok=True)
+    # Create a Jinja2 environment
+    env = Environment(loader=FileSystemLoader('.'))
 
-    # Save the rendered HTML to a file
-    output_file_path = os.path.join(output_folder, f"{country}_survey.html")
-    with open(output_file_path, "w", encoding="utf-8") as output_file:
-        output_file.write(survey_html)
+    # Load the survey template HTML
+    template = env.get_template(template_html)
 
-    # Save the survey DataFrame to a CSV file
-    csv_output_file_path = os.path.join(output_folder, f"{country}_survey.csv")
-    survey_df.to_csv(csv_output_file_path, index=False)
+    def make_images_block(number_of_images):
+        images_block = ''
+        for i in range(number_of_images):
+            images_block += f"""
 
-    return output_file_path, csv_output_file_path
+                                <div data-id="{i}" class="image">
+                                    <span class="number">{i}</span>
+                                    <img src="image{i}" alt="Image {i}">
+                                </div>
+                            """
+        return images_block
+
+    # Prepare container block (simplified for Jinja)
+    container_block = ''
+    for i, row in survey_items_df.iterrows():
+        print(f'row {i}: {row}')
+        images_block = make_images_block(number_of_images)
+        container_block += f"""
+        <div class="sortable">
+            <div class="item">
+              <h2>{row['Item Title']}</h2>
+              <p>{row['Item Text']}</p>
+              {images_block}
+              <!-- Simplified conditions for other item types if needed -->
+            </div>
+        </div>
+        """
+
+    # Crowd-form string substitution
+    crowd_form = f"""
+        <crowd-form>
+            <div class="container">
+                {container_block}
+            </div>
+            <!-- Additional Crowd HTML Elements for Mechanical Turk -->
+            <short-instructions>
+                <p>{short_instructions}</p>
+            </short-instructions>
+            <full-instructions>
+                <p>{full_instructions}</p>
+                <!-- Additional detailed instructions go here -->
+            </full-instructions>
+        </crowd-form>
+    """
+
+    # Process data and render the template
+    try:
+        rendered_template = template.render(
+            country=country_name,
+            crowd_form=crowd_form
+        )
+    except Exception as e:
+        print(f"Jinja2 Error: {e}")
+        # Handle the error accordingly, e.g., raise it again, log it, or provide a default template.
+
+    # Create the output folder if it doesn't exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Save the result to a file
+    survey_html_path = os.path.join(output_folder, f"{country_name}_survey.html")
+    with open(survey_html_path, "w") as file:
+        file.write(rendered_template)
+
+    survey_csv_path = os.path.join(output_folder, f"{country_name}_survey.csv")
+    # rename all the columns to image1, image2, etc.
+    [country_df.rename(columns={col: f"image{i+1}"}, inplace=True) for i, col in enumerate(png_column_headers)]
+
+    # Save the result to a file
+    country_df.to_csv(survey_csv_path, index=False)
+
+    return survey_html_path, survey_csv_path 
 
 def main():
     args = parse_args()
@@ -70,7 +158,9 @@ def main():
     # Process surveys for each country
     for country_csv in tqdm(find_csv_files(args["directory"]), desc="Processing Countries"):
         # Process the country survey
-        survey_html_path, survey_csv_path = process_country_survey(args["item_template"], items_df, country_csv, args["output_folder"], args["url_prefix"])
+        survey_items_csv = args["items"]
+        template_html = args["item_template"]
+        survey_html_path, survey_csv_path = generate_survey_template(country_csv, survey_items_csv, template_html, short_instructions=args["short_instructions"], full_instructions=args["full_instructions"], output_folder=args["output_folder"])
 
         # Print paths to generated files
         print(f"Generated HTML file: {survey_html_path}")
