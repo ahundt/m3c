@@ -17,8 +17,8 @@ def parse_args():
     parser.add_argument("--log_file_basename", type=str, default="log", help="The base name for the log file")
     parser.add_argument("--description", type=str, default=None, help="A description of the run for future reference")
     parser.add_argument("--resume", type=str, default=None, help="If set to a file path (str), resumes from the specified log file. If set to True (bool), loads the most recent log file. Defaults to None")
-    parser.add_argument("--short_instructions", type=str, default="Drag and drop the images to rank them from most to least relevant.", help="Short instructions for the survey")
-    parser.add_argument("--full_instructions", type=str, default="Drag and drop the images to rank them from most to least relevant. If you are unsure, you can skip the item.", help="Full instructions for the survey")
+    parser.add_argument("--short_instructions", type=str, default="For each row, enter different numbers under each image to rank from best to worst.", help="Short instructions for the survey")
+    parser.add_argument("--full_instructions", type=str, default="For each row, enter different numbers in the white box under each image to rank from best (1) to worst (same as the total number of images). The lowest number 1 is always the best outcome, such as less offensive, a more accurate description, or fewer artifacts. If you are unsure, you can skip the item by leaving it blank.", help="Full instructions for the survey")
     return vars(parser.parse_args())
 
 
@@ -82,7 +82,7 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
                 <td>
                     <div style="text-align: center;">
                         <img src="${{img{i}}}" style="width: 25vw; max-width: 200px; max-height: 200px;"/>
-                        <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value="{i}"  min="1" max="{{ number_of_images }}" required>
+                        <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value=""  min="1" max="{{ number_of_images }}" required>
                     </div>
                 </td>
             """
@@ -108,6 +108,14 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     # Complete the crowd form
     crowd_form = f"""
         <crowd-form>
+            <div>
+                <h3>Consent Form</h3>
+                <p>You are being asked to participate in a research study being conducted by the Bot Intelligence Group at Carnegie Mellon University.  Participation is voluntary.  The purpose of this study is to understand ways to represent culture in AI - generated images.  Any reports and presentations about the findings from this study will not include your name or any other information that could identify you.</p>
+                <!--<p>Your Mechanical Turk Worker ID will be used to distribute the payment to you, but we will not store your worker ID with your survey responses. Please be aware that your Mturk Workers ID can potentially be linked to information about you on your Amazon Public Profile page, however we will not access any personally identifying information from your Amazon Public Profile.</p>-->
+                <p>
+                    <label for="consent" style="color:red;"><b>By submitting answers to this survey, you are agreeing to particpate in this study</b></label>
+                </p>
+            </div>
             <div class="container">
                 <table style="text-align: center; max-width: 1600px;" id="question-container">
                     {container_block}
