@@ -33,9 +33,9 @@ def update_image_paths(country_df, url_prefix):
         country_df[column] = url_prefix + '/' + country_df[column]
     return country_df
 
-def format_for_mturk_substitution(column_headers, number_of_images):
+def format_for_mturk_substitution(number_of_images):
     # Format the strings for Amazon Mechanical Turk substitution
-    return [f"Image{i+1}" for i in range(number_of_images) if f"Image{i+1}" in column_headers]
+    return [f"image{i+1}" for i in range(number_of_images)]
 
 def generate_survey_template(country_csv_file, survey_items_csv, template_html, url_prefix, output_folder="output_surveys"):
     # Load data from CSV files
@@ -43,14 +43,15 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     survey_items_data = pd.read_csv(survey_items_csv)
     country_name = get_country_name(country_csv_file)
 
+    column_headers = get_png_column_headers(country_data)
     # Determine the number of images
-    number_of_images = len(get_png_column_headers(country_data))
+    number_of_images = len(column_headers)
 
     # Update image paths
     country_data = update_image_paths(country_data, url_prefix)
 
     # Format strings for Amazon Mechanical Turk substitution
-    mturk_image_columns = format_for_mturk_substitution(country_data.columns, number_of_images)
+    mturk_image_columns = format_for_mturk_substitution(number_of_images)
 
     # Create a Jinja2 environment
     env = Environment(loader=FileSystemLoader('.'))
@@ -59,12 +60,26 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     template = env.get_template(template_html)
 
     # Process data and render the template
+    items = []
+    for _, row in survey_items_data.iterrows():
+        item_dict = {
+            'Item Type': row['Item Type'],
+            'Item Title': row['Item Title'],
+            'Item Text': row['Item Text'],
+        }
+        
+        # Add image columns for Amazon Mechanical Turk substitution
+        for i in range(number_of_images):
+            item_dict[f"Image{i+1}"] = f"image{i+1}"
+
+        items.append(item_dict)
+
+    # Process data and render the template
     rendered_template = template.render(
         country=country_name,
-        items=survey_items_data.to_dict('records'),
+        items=items,
         number_of_images=number_of_images,
         number_of_survey_items=len(survey_items_data),
-        mturk_image_columns=mturk_image_columns
     )
 
     # Create the output folder if it doesn't exist
