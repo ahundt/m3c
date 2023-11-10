@@ -2,6 +2,7 @@
 import argparse
 import pandas as pd
 import os
+import random
 from jinja2 import Template, Environment, FileSystemLoader
 from tqdm import tqdm
 from util import find_csv_files, save_and_load_dict_with_timestamp
@@ -93,7 +94,7 @@ def generate_survey_template(
                 <td>
                     <div style="text-align: center;">
                         <img src="${{img{i}}}" style="width: 25vw; max-width: 200px; max-height: 200px;"/>
-                        <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value=""  min="1" max="{{ number_of_images }}" required>
+                        <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value="" min="1" max="{number_of_images}" required>
                     </div>
                 </td>
             """
@@ -124,7 +125,7 @@ def generate_survey_template(
                 <p>{consent_text}</p>
                 <!--<p>Your Mechanical Turk Worker ID will be used to distribute the payment to you, but we will not store your worker ID with your survey responses. Please be aware that your Mturk Workers ID can potentially be linked to information about you on your Amazon Public Profile page, however we will not access any personally identifying information from your Amazon Public Profile.</p>-->
                 <p>
-                    <label for="consent" style="color:red;"><b>By submitting answers to this survey, you are agreeing to particpate in this study</b></label>
+                    <label for="consent" style="color:red;"><b>By submitting answers to this survey, you are agreeing to participate in this study</b></label>
                 </p>
             </div>
             <div class="container">
@@ -167,15 +168,57 @@ def generate_survey_template(
     # Process the survey CSV and save it to a file
     country_df = update_image_paths(country_df, url_prefix)
     survey_csv_path = os.path.join(output_folder, f"{country_name}_survey.csv")
-    # rename all the columns to image1, image2, etc.
+
+    # Rename all the columns to image1, image2, etc.
     [country_df.rename(columns={col: f"img{i+1}"}, inplace=True) for i, col in enumerate(png_column_headers)]
-    # move seed to the first column
-    country_df = country_df[["seed"] + [col for col in country_df.columns if col != "seed"]]
+    
+    # Add workerId column expected by MTurk
+    # note this is just filler, it is not the real workerId
+    country_df['workerId'] = "W1"
+    # country_df['assignmentId'] = "A1"
 
     # Save the result to a file
     country_df.to_csv(survey_csv_path, index=False)
 
     return survey_html_path, survey_csv_path 
+
+
+def shuffle_images_and_save(country_df, country_name, output_folder, use_row_seed=True):
+    """
+    Shuffle the image columns in the DataFrame while maintaining reproducibility based on a seed column.
+    
+    Args:
+        country_df (pandas.DataFrame): The DataFrame containing the survey data.
+        country_name (str): The name of the country or survey.
+        output_folder (str): The folder to save the shuffled survey data.
+        use_row_seed (bool, optional): If True, use the 'seed' column in each row for reproducibility.
+            Defaults to True.
+
+    Returns:
+        str: The path to the saved shuffled survey CSV file.
+    """
+    # Copy the original DataFrame
+    shuffled_df = country_df.copy()
+    image_columns = get_png_column_headers(country_df)
+    image_column_indices = [shuffled_df.columns.get_loc(col) for col in image_columns]
+
+    # Shuffle only the image columns, and do so using the seed column
+    # The reason is for reproducibility
+    for i in range(len(shuffled_df)):
+        if use_row_seed:
+            seed = shuffled_df.loc[i, "seed"]
+            random.seed(int(seed))
+        shuffled_col_indices = image_column_indices.copy()
+        random.shuffle(shuffled_col_indices)
+        # print(f"Shuffled columns: {shuffled_cols}")
+        shuffled_data = shuffled_df.iloc[i, shuffled_col_indices]
+        shuffled_df.iloc[i, image_column_indices] = shuffled_data
+
+    # Save the shuffled DataFrame to a new CSV file
+    shuffled_csv_path = os.path.join(output_folder, f"{country_name}_survey_shuffled.csv")
+    shuffled_df.to_csv(shuffled_csv_path, index=False)
+    return shuffled_csv_path
+
 
 def main():
     args = parse_args()
@@ -198,11 +241,16 @@ def main():
             url_prefix=args["url_prefix"],
             consent_title=args["consent_title"],
             consent_text=args["consent_text"]
-            )
+        )
 
         # Print paths to generated files
         print(f"Generated HTML file: {survey_html_path}")
         print(f"Generated CSV file: {survey_csv_path}")
+
+        # Shuffle images for each row
+        country_df = pd.read_csv(survey_csv_path)
+        shuffled_survey_csv_path = shuffle_images_and_save(country_df, get_country_name(country_csv), args["output_folder"])
+        print(f"Generated shuffled CSV file: {shuffled_survey_csv_path}")
 
 if __name__ == "__main__":
     main()
