@@ -2,6 +2,7 @@ from jinja2 import Environment, FileSystemLoader
 import pandas as pd
 import os
 
+
 def get_png_column_headers(dataframe):
     """
     Get the headers of columns containing ".png" paths in the first row of the DataFrame.
@@ -21,10 +22,12 @@ def get_png_column_headers(dataframe):
     # Return the headers for columns containing ".png" paths
     return png_columns
 
+
 def get_country_name(country_csv_file):
     # Get country name from the file path
     country = os.path.splitext(os.path.basename(country_csv_file))[0].split('_')[0]
     return country
+
 
 def update_image_paths(country_df, url_prefix):
     # Update paths to web addresses using --url_prefix
@@ -33,10 +36,10 @@ def update_image_paths(country_df, url_prefix):
         country_df[column] = url_prefix + '/' + country_df[column]
     return country_df
 
+
 def format_for_mturk_substitution(number_of_images):
     # Format the strings for Amazon Mechanical Turk substitution
     return [f"image{i+1}" for i in range(number_of_images)]
-
 
 
 def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys"):
