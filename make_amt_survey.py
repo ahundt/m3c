@@ -58,7 +58,7 @@ def update_image_paths(country_df, url_prefix):
 
 def format_for_mturk_substitution(number_of_images):
     # Format the strings for Amazon Mechanical Turk substitution
-    return [f"image{i+1}" for i in range(number_of_images)]
+    return [f"image{i}" for i in range(number_of_images)]
 
 
 def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys", url_prefix="https://raw.githubusercontent.com/ahundt/m3c_eval/main"):
@@ -143,7 +143,9 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     country_df = update_image_paths(country_df, url_prefix)
     survey_csv_path = os.path.join(output_folder, f"{country_name}_survey.csv")
     # rename all the columns to image1, image2, etc.
-    [country_df.rename(columns={col: f"image{i+1}"}, inplace=True) for i, col in enumerate(png_column_headers)]
+    [country_df.rename(columns={col: f"image{i}"}, inplace=True) for i, col in enumerate(png_column_headers)]
+    # move seed to the first column
+    country_df = country_df[["seed"] + [col for col in country_df.columns if col != "seed"]]
 
     # Save the result to a file
     country_df.to_csv(survey_csv_path, index=False)
