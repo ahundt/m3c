@@ -80,10 +80,9 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
         images_block = ''
         for i in range(number_of_images):
             images_block += f"""
-
                                 <div data-id="{i}" class="image">
                                     <span class="number">{i}</span>
-                                    <img src="image{i}" alt="Image {i}">
+                                    <img src="${{image{i}}}" alt="Image {i}">
                                 </div>
                             """
         return images_block
