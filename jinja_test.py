@@ -59,20 +59,20 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     # Load the survey template HTML
     template = env.get_template(template_html)
 
-    # Process data and render the template
-    items = []
+    survey_items = []
     for _, row in survey_items_data.iterrows():
-        item_dict = {
-            'Item Type': row['Item Type'],
-            'Item Title': row['Item Title'],
-            'Item Text': row['Item Text'],
+        survey_item = {
+            'item_type': row['Item Type'],
+            'item_title': row['Item Title'],
+            'item_text': row['Item Text'],
         }
         
         # Add image columns for Amazon Mechanical Turk substitution
         for i in range(number_of_images):
-            item_dict[f"Image{i+1}"] = f"image{i+1}"
+            survey_item[f"image{i+1}"] = f"image{i+1}"
 
-        items.append(item_dict)
+        survey_items.append(survey_item)
+
 
     # Process data and render the template
     rendered_template = template.render(
