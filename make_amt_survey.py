@@ -58,7 +58,7 @@ def update_image_paths(country_df, url_prefix):
 
 def format_for_mturk_substitution(number_of_images):
     # Format the strings for Amazon Mechanical Turk substitution
-    return [f"image{i}" for i in range(number_of_images)]
+    return [f"img{i+1}" for i in range(number_of_images)]
 
 
 def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys", url_prefix="https://raw.githubusercontent.com/ahundt/m3c_eval/main"):
@@ -76,43 +76,89 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     # Load the survey template HTML
     template = env.get_template(template_html)
 
-    def make_images_block(number_of_images):
-        # Updated block to include arrows and editable text boxes
-        images_block = ''
-        for i in range(number_of_images):
-            images_block += f"""
-                <div data-id="{i}" class="image">
-                    <span class="number">{i + 1}</span>
-                    <input type="text" class="edit-box" name="image{i}" value="{i + 1}" />
-                    <span class="arrow left">&#9664;</span>
-                    <span class="arrow right">&#9654;</span>
-                    <img src="${{image{i}}}" alt="Image {i}" style="width: 200px; height: auto;">
-                </div>
+    # def make_images_block(number_of_images):
+    #     images_block = ''
+    #     for i in range(number_of_images):
+    #         images_block += f"""
+
+    #                 <div data-id="{i}" class="image">
+    #                     <span class="number">{i}</span>
+    #                     <img src="${{image{i}}}" alt="Image {i} style="width: 200px; height: auto;">
+    #                 </div>
+    #             """
+    #     return images_block
+
+    # # Prepare container block (simplified for Jinja)
+    # container_block = ''
+    # for i, row in survey_items_df.iterrows():
+    #     print(f'row {i}: {row}')
+    #     images_block = make_images_block(number_of_images)
+    #     container_block += f"""
+    #     <div class="sortable">
+    #         <div class="item">
+    #           <h2>{row['Item Title']}</h2>
+    #           <p>{row['Item Text']}</p>
+    #           <p>Image Description: <b>${{prompt}}</b></p>
+    #           {images_block}
+    #           <!-- Simplified conditions for other item types if needed -->
+    #         </div>
+    #     </div>
+    #     """
+
+    # # Crowd-form string substitution
+    # crowd_form = f"""
+    #     <crowd-form>
+    #         <div class="container">
+    #             {container_block}
+    #         </div>
+    #         <!-- Additional Crowd HTML Elements for Mechanical Turk -->
+    #         <short-instructions>
+    #             <p>{short_instructions}</p>
+    #         </short-instructions>
+    #         <full-instructions>
+    #             <p>{full_instructions}</p>
+    #             <!-- Additional detailed instructions go here -->
+    #         </full-instructions>
+    #     </crowd-form>
+    # """
+    def make_images_and_ratings_block(number_of_images):
+        images_and_ratings_block = ""
+        for i in range(1, number_of_images+1):
+            images_and_ratings_block += f"""
+                <td>
+                    <div style="text-align: center;">
+                        <img src="${{img{i}}}" style="width: 25vw; max-width: 200px; max-height: 200px;"/>
+                        <input type="number" id="img{i}-rating" name="img{i}-rating" value="{i}" required>
+                    </div>
+                </td>
             """
-        return images_block
+        return images_and_ratings_block
 
-    # Prepare container block (simplified for Jinja)
-    container_block = ''
+    # Create a combined block for images and ratings
+    images_and_ratings_block = make_images_and_ratings_block(number_of_images)
+
+    # Create container block for images and ratings within the same table cell
+    container_block = ""
     for i, row in survey_items_df.iterrows():
-        print(f'row {i}: {row}')
-        images_block = make_images_block(number_of_images)
+        # Add the description row with images and ratings
         container_block += f"""
-        <div class="sortable items-container">
-            <div class="item">
-              <h2>{row['Item Title']}</h2>
-              <p>{row['Item Text']}</p>
-              <p>Image Description: <b>${{prompt}}</b></p>
-              {images_block}
-              <!-- Simplified conditions for other item types if needed -->
-            </div>
-        </div>
+            <tr>
+                <td style="text-align: left;">
+                    <h3>{row['Item Title']}</h3>
+                    <p>Image Description: <b>${{prompt}}</b></i></p>
+                    <p>{row["Item Text"]} (1=best, {number_of_images}=worst)</p>
+                </td>
+                {images_and_ratings_block}
+            </tr>
         """
-
-    # Crowd-form string substitution
+    
+    # Complete the crowd form
     crowd_form = f"""
         <crowd-form>
             <div class="container">
-                {container_block}
+                <table style="text-align: center; max-width: 1600px;" id="question-container">
+                    {container_block}
+                </table>
             </div>
             <!-- Additional Crowd HTML Elements for Mechanical Turk -->
             <short-instructions>
@@ -148,7 +194,7 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     country_df = update_image_paths(country_df, url_prefix)
     survey_csv_path = os.path.join(output_folder, f"{country_name}_survey.csv")
     # rename all the columns to image1, image2, etc.
-    [country_df.rename(columns={col: f"image{i}"}, inplace=True) for i, col in enumerate(png_column_headers)]
+    [country_df.rename(columns={col: f"img{i+1}"}, inplace=True) for i, col in enumerate(png_column_headers)]
     # move seed to the first column
     country_df = country_df[["seed"] + [col for col in country_df.columns if col != "seed"]]
 

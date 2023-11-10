@@ -12,6 +12,20 @@
   <script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
   <!-- Define some custom CSS styles -->
   <style>
+    p {
+        margin-bottom: 0.5rem;
+    }
+    hr {
+        margin: 0.5rem;
+    }
+    #question-container tr {
+        border-bottom: solid 1px;
+    }
+    #question-container td {
+        padding: 1rem 0.5rem;
+    }
+</style>
+  <!-- <style>
     .container {
       display: flex;
       flex-direction: column;
@@ -98,7 +112,7 @@
       width: 50px;
       text-align: center;
     }
-  </style>
+  </style> -->
 </head>
 <body>
   {{crowd_form}}
@@ -112,88 +126,88 @@
       // Create a random number generator based on the worker ID and the seed
       var random = new Math.seedrandom(workerId + seed);
 
-      // Loop through the items
-      $(".sortable").each(function() {
-        // Get the item type, the sortable element, the answer element, and the alert element
-        var sortable = $(this);
-        var answer = sortable.find(".answer");
-        var alert = sortable.find(".alert");
+    //   // Loop through the items
+    //   $(".sortable").each(function() {
+    //     // Get the item type, the sortable element, the answer element, and the alert element
+    //     var sortable = $(this);
+    //     var answer = sortable.find(".answer");
+    //     var alert = sortable.find(".alert");
 
-        // Get the number of images
-        var n = sortable.children(".image").length;
+    //     // Get the number of images
+    //     var n = sortable.children(".image").length;
 
-        // Shuffle the images based on the random number generator
-        for (var i = n - 1; i > 0; i--) {
-          var j = Math.floor(random() * (i + 1));
-          var temp = sortable.children(".image").eq(i);
-          sortable.children(".image").eq(i).insertBefore(sortable.children(".image").eq(j));
-          sortable.children(".image").eq(j).insertBefore(temp);
-        }
+    //     // Shuffle the images based on the random number generator
+    //     for (var i = n - 1; i > 0; i--) {
+    //       var j = Math.floor(random() * (i + 1));
+    //       var temp = sortable.children(".image").eq(i);
+    //       sortable.children(".image").eq(i).insertBefore(sortable.children(".image").eq(j));
+    //       sortable.children(".image").eq(j).insertBefore(temp);
+    //     }
 
-        // Update the numbers on the images
-        sortable.children(".image").each(function(index) {
-          $(this).find(".number").text(index + 1);
-        });
+    //     // Update the numbers on the images
+    //     sortable.children(".image").each(function(index) {
+    //       $(this).find(".number").text(index + 1);
+    //     });
   
-        // Make the images draggable and sortable using jQuery UI
-        sortable.sortable({
-          update: function(event, ui) {
-            // Update the numbers on the images
-            sortable.children(".image").each(function(index) {
-              $(this).find(".number").text(index + 1);
-            });
+    //     // Make the images draggable and sortable using jQuery UI
+    //     sortable.sortable({
+    //       update: function(event, ui) {
+    //         // Update the numbers on the images
+    //         sortable.children(".image").each(function(index) {
+    //           $(this).find(".number").text(index + 1);
+    //         });
   
-        // Update the answer value
-            var order = sortable.sortable("toArray", { attribute: "data-id" });
-            answer.val(order.join(","));
-          }
-        });
-        sortable.disableSelection();
+    //     // Update the answer value
+    //         var order = sortable.sortable("toArray", { attribute: "data-id" });
+    //         answer.val(order.join(","));
+    //       }
+    //     });
+    //     sortable.disableSelection();
 
-        // Validate the answer before submitting
-        answer.on("change", function() {
-          // If the answer is empty or incomplete, show the alert and prevent submission
-          if (answer.val().split(",").length < n) {
-            alert.show();
-            turkSetAssignmentID("ASSIGNMENT_ID_NOT_AVAILABLE");
-          } else {
-            // Otherwise, hide the alert and allow submission
-            alert.hide();
-            turkSetAssignmentID(assignmentId);
-          }
-        });
-      });
-       // New Function: Update the image numbers on arrow click
-       $(".arrow").on("click", function() {
-        var container = $(this).closest(".sortable");
-        var images = container.find(".image");
-        var clickedNumber = parseInt($(this).siblings(".edit-box").val());
-        var direction = $(this).hasClass("left") ? -1 : 1;
+    //     // Validate the answer before submitting
+    //     answer.on("change", function() {
+    //       // If the answer is empty or incomplete, show the alert and prevent submission
+    //       if (answer.val().split(",").length < n) {
+    //         alert.show();
+    //         turkSetAssignmentID("ASSIGNMENT_ID_NOT_AVAILABLE");
+    //       } else {
+    //         // Otherwise, hide the alert and allow submission
+    //         alert.hide();
+    //         turkSetAssignmentID(assignmentId);
+    //       }
+    //     });
+    //   });
+    //    // New Function: Update the image numbers on arrow click
+    //    $(".arrow").on("click", function() {
+    //     var container = $(this).closest(".sortable");
+    //     var images = container.find(".image");
+    //     var clickedNumber = parseInt($(this).siblings(".edit-box").val());
+    //     var direction = $(this).hasClass("left") ? -1 : 1;
         
-        if (clickedNumber >= 1 && clickedNumber <= images.length) {
-          // Swap the image numbers on arrow click
-          var currImage = images.filter(function() {
-            return parseInt($(this).find(".number").text()) === clickedNumber;
-          });
-          var targetImage = images.filter(function() {
-            return parseInt($(this).find(".number").text()) === clickedNumber + direction;
-          });
+    //     if (clickedNumber >= 1 && clickedNumber <= images.length) {
+    //       // Swap the image numbers on arrow click
+    //       var currImage = images.filter(function() {
+    //         return parseInt($(this).find(".number").text()) === clickedNumber;
+    //       });
+    //       var targetImage = images.filter(function() {
+    //         return parseInt($(this).find(".number").text()) === clickedNumber + direction;
+    //       });
 
-          if (targetImage.length) {
-            var currNumber = currImage.find(".number");
-            var targetNumber = targetImage.find(".number");
-            var tempText = currNumber.text();
-            currNumber.text(targetNumber.text());
-            targetNumber.text(tempText);
+    //       if (targetImage.length) {
+    //         var currNumber = currImage.find(".number");
+    //         var targetNumber = targetImage.find(".number");
+    //         var tempText = currNumber.text();
+    //         currNumber.text(targetNumber.text());
+    //         targetNumber.text(tempText);
 
-            // Update the answer value
-            var order = container.find(".image .number").map(function() {
-              return $(this).text();
-            }).get().join(",");
-            container.find(".answer").val(order);
-          }
-        }
-      });
+    //         // Update the answer value
+    //         var order = container.find(".image .number").map(function() {
+    //           return $(this).text();
+    //         }).get().join(",");
+    //         container.find(".answer").val(order);
+    //       }
+    //     }
+    //   });
     });
   </script>
 
