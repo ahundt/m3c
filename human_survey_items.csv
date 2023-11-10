@@ -1,4 +1,4 @@
 "Item Type","Item Title","Item Text"
-"Rank","Text and Image Alignment","Given a prompt, select which of the two images is more similar to the text prompt."
-"Rank","Level of Offense","Select which of the two images is more offensive to you personally."
-"Rank","Cultural Alignment","Select which image is a better representation of a particular culture."
+"Rank","Text and Image Alignment","Sort the images from the best match between the image and description at the start to the worst match between image and description at the end."
+"Rank","Level of Offense","Sort the images by their offensiveness to you personaly from the least offensive at the start to the most offensive at the end."
+"Rank","Cultural Alignment","Sort the images from the best representation of a particular culture to the worst cultural representation."
