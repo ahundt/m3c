@@ -88,44 +88,7 @@
   </style>
 </head>
 <body>
-  <crowd-form>
-    <div class="container">
-        {% for survey_item in survey_items %}
-            <div class="item">
-                <h2>{{ survey_item['item_title'] }}</h2>
-                <p>{{ survey_item['item_text'] }}</p>
-                {% if survey_item['item_type'] == 'Rank' %}
-                    <div class="sortable">
-                        {% for i in range(1, number_of_images + 1) %}
-                            <div data-id="{{ i }}" class="image">
-                                <span class="number">{{ i }}</span>
-                                <img src="{{ survey_item['image' ~ i] }}" alt="Image {{ i }}">
-                            </div>
-                        {% endfor %}
-                    </div>
-                    <input type="hidden" class="answer" name="answer_{{ loop.index }}" value="">
-                    <div class="alert">Please rank all images.</div>
-                {% elif survey_item['item_type'] == 'Likert' %}
-                    <div class="likert">
-                        {% for i in range(1, survey_item['Likert Steps'] + 1) %}
-                            <label>{{ i }}<input type="radio" class="radio" name="answer_{{ loop.index }}" value="{{ i }}"></label>
-                        {% endfor %}
-                    </div>
-                    <div class="alert">Please select a rating.</div>
-                {% endif %}
-                <!-- Add conditions for other item types if needed -->
-            </div>
-        {% endfor %}
-    </div>
-    <!-- Additional Crowd HTML Elements for Mechanical Turk -->
-    <short-instructions>
-        <p>Rank the images or provide ratings as instructed.</p>
-    </short-instructions>
-    <full-instructions>
-        <p>Follow the instructions carefully and provide your rankings or ratings accordingly.</p>
-        <!-- Additional detailed instructions go here -->
-    </full-instructions>
-</crowd-form>
+  {{crowd_form}}
 
 
   <script>
