@@ -10,8 +10,9 @@ M3C is a Python tool for generating surveys to collect human preferences for ima
 - [Setup Instructions](#setup-instructions)
 - [Usage Instructions](#usage-instructions)
 - [Additional Information](#additional-information)
-- [Contributing](#contributing)
-- [License](#license)
+- [show_forms.py](#show_formspy)
+<!-- - [Contributing](#contributing) -->
+<!-- - [License](#license) -->
 
 ## Overview
 
@@ -98,3 +99,54 @@ For additional customization and advanced usage, you can modify the provided tem
 - **Randomized Ordering**: The order of images in each survey can be randomized for improved data quality. This is done to minimize position bias in participant rankings.
 
 - **Crowdsourcing Platforms**: M3C is designed for crowdsourcing platforms like Amazon Mechanical Turk. Ensure you have an account and the necessary platform credits to distribute surveys.
+
+
+## show_forms.py
+
+`show_forms.py` is a Python script for viewing the generated forms without using the mechanical turk website.
+
+It allows you to perform dynamic text substitution in HTML templates based on data from CSV files. It's particularly useful when you want to display multiple forms or templates with variable data without creating separate HTML files for each case.
+
+### Usage
+
+#### Prerequisites
+
+Before using `show_forms.py`, make sure you have the following prerequisites installed:
+
+- Python
+- Flask (a Python web framework)
+- pandas (for working with CSV files)
+
+You can install Flask and pandas using pip:
+
+```bash
+pip install Flask pandas
+Running the Script
+Save your HTML templates and corresponding CSV files in a folder. Each HTML file should contain placeholders like ${variable} where you want the dynamic text to be inserted.
+```
+
+Here is an example if you have the setup detailed at the top:
+
+```bash
+python show_forms.py --folder ./output_surveys
+```
+
+Run show_forms.py using the following command:
+
+```bash
+python show_forms.py --folder /path/to/your/folder
+```
+
+Replace /path/to/your/folder with the path to the folder containing your HTML and CSV files.
+
+The script will start a local web server. Open your web browser and navigate to http://127.0.0.1:5000/. You will see the HTML templates with dynamic text substituted from the CSV files.
+
+Use the browser to navigate through the forms or templates. Once all templates are processed, the server will exit automatically.
+
+Tips
+Make sure that you have an equal number of HTML and CSV files in your specified folder. Each HTML file should correspond to a CSV file.
+Use ${variable} placeholders in your HTML templates. These placeholders will be replaced with data from the CSV files.
+
+Example
+
+For a working example, refer to the GitHub repository where you can find sample HTML and CSV files.
