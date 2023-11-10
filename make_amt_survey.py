@@ -82,7 +82,7 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
             images_block += f"""
                                 <div data-id="{i}" class="image">
                                     <span class="number">{i}</span>
-                                    <img src="${{image{i}}}" alt="Image {i}">
+                                    <img src="${{image{i}}}" alt="Image {i}" style="width: 200px; height: auto;">
                                 </div>
                             """
         return images_block
@@ -93,10 +93,11 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
         print(f'row {i}: {row}')
         images_block = make_images_block(number_of_images)
         container_block += f"""
-        <div class="sortable">
+        <div class="sortable items-container">
             <div class="item">
               <h2>{row['Item Title']}</h2>
               <p>{row['Item Text']}</p>
+              <p>Image Description: <b>${{prompt}}</b></p>
               {images_block}
               <!-- Simplified conditions for other item types if needed -->
             </div>

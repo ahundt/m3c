@@ -25,13 +25,14 @@
       height: 200px;
       margin: 10px;
       border: 1px solid black;
+      position: relative; /* Add this line to make number position relative to the image */
     }
 
     .number {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      font-size: 24px;
+      position: absolute; /* Position the number absolutely within the image */
+      top: 5px; /* Adjust the top position as needed */
+      left: 5px; /* Adjust the left position as needed */
+      font-size: 18px; /* Increase the font size for better visibility */
       font-weight: bold;
     }
 
@@ -90,49 +91,53 @@
 <body>
   {{crowd_form}}
 
-
   <script>
-    // Get the worker ID, the seed, and the assignment ID from the URL
-    var workerId = turkGetParam("workerId");
-    var seed = turkGetParam("seed");
-    var assignmentId = turkGetParam("assignmentId");
-    // Create a random number generator based on the worker ID and the seed
-    var random = new Math.seedrandom(workerId + seed);
-    // Loop through the items
-    $(".item").each(function() {
-      // Get the item type, the sortable element, the answer element, and the alert element
-      var type = $(this).find(".answer").attr("name").slice(0, 6);
-      var sortable = $(this).find(".sortable");
-      var answer = $(this).find(".answer");
-      var alert = $(this).find(".alert");
-      // If the item type is "answer", do the following
-      if (type == "answer") {
+    $(document).ready(function() {
+      // Get the worker ID, the seed, and the assignment ID from the URL
+      var workerId = turkGetParam("workerId");
+      var seed = turkGetParam("seed");
+      var assignmentId = turkGetParam("assignmentId");
+      // Create a random number generator based on the worker ID and the seed
+      var random = new Math.seedrandom(workerId + seed);
+      
+      // Loop through the items
+      $(".sortable").each(function() {
+        // Get the item type, the sortable element, the answer element, and the alert element
+        var sortable = $(this);
+        var answer = sortable.find(".answer");
+        var alert = sortable.find(".alert");
+        
         // Get the number of images
-        var n = sortable.children().length;
+        var n = sortable.children(".image").length;
+        
         // Shuffle the images based on the random number generator
         for (var i = n - 1; i > 0; i--) {
           var j = Math.floor(random() * (i + 1));
-          var temp = sortable.children()[i];
-          sortable.insertBefore(sortable.children()[j], sortable.children()[i]);
-          sortable.insertBefore(temp, sortable.children()[j]);
+          var temp = sortable.children(".image").eq(i);
+          sortable.children(".image").eq(i).insertBefore(sortable.children(".image").eq(j));
+          sortable.children(".image").eq(j).insertBefore(temp);
         }
+  
         // Update the numbers on the images
-        for (var i = 0; i < n; i++) {
-          sortable.children()[i].querySelector(".number").textContent = i + 1;
-        }
+        sortable.children(".image").each(function(index) {
+          $(this).find(".number").text(index + 1);
+        });
+  
         // Make the images draggable and sortable using jQuery UI
         sortable.sortable({
           update: function(event, ui) {
             // Update the numbers on the images
-            for (var i = 0; i < n; i++) {
-              sortable.children()[i].querySelector(".number").textContent = i + 1;
-            }
+            sortable.children(".image").each(function(index) {
+              $(this).find(".number").text(index + 1);
+            });
+  
             // Update the answer value
-            var order = sortable.sortable("toArray", {attribute: "data-id"});
+            var order = sortable.sortable("toArray", { attribute: "data-id" });
             answer.val(order.join(","));
           }
         });
         sortable.disableSelection();
+  
         // Validate the answer before submitting
         answer.on("change", function() {
           // If the answer is empty or incomplete, show the alert and prevent submission
@@ -145,27 +150,9 @@
             turkSetAssignmentID(assignmentId);
           }
         });
-      } else if (type == "likert") {
-        // Get the likert element, the answer element, and the alert element
-        var likert = $(this).find(".likert");
-        var answer = $(this).find(".answer");
-        var alert = $(this).find(".alert");
-        // Validate the answer before submitting
-        likert.on("change", function() {
-          // If the answer is empty or incomplete, show the alert and prevent submission
-          if (likert.find(":checked").length === 0) {
-            alert.show();
-            turkSetAssignmentID("ASSIGNMENT_ID_NOT_AVAILABLE");
-          } else {
-            // Otherwise, hide the alert and allow submission
-            alert.hide();
-            turkSetAssignmentID(assignmentId);
-          }
-          // Update the answer value
-          answer.val(likert.find(":checked").val() || "");
-        });
-      }
+      });
     });
   </script>
+  
 </body>
 </html>
