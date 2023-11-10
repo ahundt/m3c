@@ -13,106 +13,21 @@
   <!-- Define some custom CSS styles -->
   <style>
     p {
-        margin-bottom: 0.5rem;
+      margin-bottom: 0.5rem;
     }
     hr {
-        margin: 0.5rem;
+      margin: 0.5rem;
     }
     #question-container tr {
-        border-bottom: solid 1px;
+      border-bottom: solid 1px;
     }
     #question-container td {
-        padding: 1rem 0.5rem;
+      padding: 1rem 0.5rem;
     }
-</style>
-  <!-- <style>
-    .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      max-width: 800px;
-      margin: auto;
+    table {
+      width: 100%;
     }
-
-    .image {
-      width: 200px;
-      height: 200px;
-      margin: 10px;
-      border: 1px solid black;
-      position: relative; /* Add this line to make number position relative to the image */
-    }
-
-    .number {
-      position: absolute; /* Position the number absolutely within the image */
-      top: 5px; /* Adjust the top position as needed */
-      left: 5px; /* Adjust the left position as needed */
-      font-size: 18px; /* Increase the font size for better visibility */
-      font-weight: bold;
-    }
-
-    .sortable {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .rating {
-      display: flex;
-      justify-content: center;
-      margin: 10px;
-    }
-
-    .radio {
-      display: none;
-    }
-
-    .label {
-      display: inline-block;
-      width: 30px;
-      height: 30px;
-      margin: 5px;
-      border: 1px solid black;
-      border-radius: 50%;
-      text-align: center;
-      line-height: 30px;
-      cursor: pointer;
-    }
-
-    .radio:checked + .label {
-      background-color: green;
-      color: white;
-    }
-
-    .answer {
-      display: none;
-    }
-
-    .likert {
-      display: flex;
-      justify-content: space-between;
-      margin: 10px;
-    }
-
-    .likert input {
-      margin: 0 5px;
-    }
-
-    .alert {
-      display: none;
-    }
-  
-    /* New styles for arrows and text boxes */
-    .arrow {
-      cursor: pointer;
-      font-size: 24px;
-    }
-
-    .edit-box {
-      margin: 5px;
-      width: 50px;
-      text-align: center;
-    }
-  </style> -->
+  </style>
 </head>
 <body>
   {{crowd_form}}
@@ -126,90 +41,53 @@
       // Create a random number generator based on the worker ID and the seed
       var random = new Math.seedrandom(workerId + seed);
 
-    //   // Loop through the items
-    //   $(".sortable").each(function() {
-    //     // Get the item type, the sortable element, the answer element, and the alert element
-    //     var sortable = $(this);
-    //     var answer = sortable.find(".answer");
-    //     var alert = sortable.find(".alert");
+      // Initialize the survey
+      var numImages = {{ number_of_images }}; // Replace with the actual number of images
+      var numItems = {{ number_of_items }}; // Replace with the actual number of items
+      var rankings = [...Array(numImages)].map((_, i) => i + 1); // Initialize rankings from 1 to numImages
 
-    //     // Get the number of images
-    //     var n = sortable.children(".image").length;
+      // Shuffle the rankings randomly
+      for (var i = numImages - 1; i > 0; i--) {
+        var j = Math.floor(random() * (i + 1));
+        var temp = rankings[i];
+        rankings[i] = rankings[j];
+        rankings[j] = temp;
+      }
 
-    //     // Shuffle the images based on the random number generator
-    //     for (var i = n - 1; i > 0; i--) {
-    //       var j = Math.floor(random() * (i + 1));
-    //       var temp = sortable.children(".image").eq(i);
-    //       sortable.children(".image").eq(i).insertBefore(sortable.children(".image").eq(j));
-    //       sortable.children(".image").eq(j).insertBefore(temp);
-    //     }
+      // Update the rankings in the number boxes
+      function updateRankings() {
+        for (var i = 0; i < numImages; i++) {
+          $('#promptrow' + (i % numItems + 1) + '-img' + i + '-rating').val(rankings[i]);
+        }
+      }
 
-    //     // Update the numbers on the images
-    //     sortable.children(".image").each(function(index) {
-    //       $(this).find(".number").text(index + 1);
-    //     });
-  
-    //     // Make the images draggable and sortable using jQuery UI
-    //     sortable.sortable({
-    //       update: function(event, ui) {
-    //         // Update the numbers on the images
-    //         sortable.children(".image").each(function(index) {
-    //           $(this).find(".number").text(index + 1);
-    //         });
-  
-    //     // Update the answer value
-    //         var order = sortable.sortable("toArray", { attribute: "data-id" });
-    //         answer.val(order.join(","));
-    //       }
-    //     });
-    //     sortable.disableSelection();
+      // Handle arrow clicks to swap rankings
+      function swapRankings(index1, index2) {
+        var temp = rankings[index1];
+        rankings[index1] = rankings[index2];
+        rankings[index2] = temp;
+        updateRankings();
+      }
 
-    //     // Validate the answer before submitting
-    //     answer.on("change", function() {
-    //       // If the answer is empty or incomplete, show the alert and prevent submission
-    //       if (answer.val().split(",").length < n) {
-    //         alert.show();
-    //         turkSetAssignmentID("ASSIGNMENT_ID_NOT_AVAILABLE");
-    //       } else {
-    //         // Otherwise, hide the alert and allow submission
-    //         alert.hide();
-    //         turkSetAssignmentID(assignmentId);
-    //       }
-    //     });
-    //   });
-    //    // New Function: Update the image numbers on arrow click
-    //    $(".arrow").on("click", function() {
-    //     var container = $(this).closest(".sortable");
-    //     var images = container.find(".image");
-    //     var clickedNumber = parseInt($(this).siblings(".edit-box").val());
-    //     var direction = $(this).hasClass("left") ? -1 : 1;
-        
-    //     if (clickedNumber >= 1 && clickedNumber <= images.length) {
-    //       // Swap the image numbers on arrow click
-    //       var currImage = images.filter(function() {
-    //         return parseInt($(this).find(".number").text()) === clickedNumber;
-    //       });
-    //       var targetImage = images.filter(function() {
-    //         return parseInt($(this).find(".number").text()) === clickedNumber + direction;
-    //       });
+      // Register arrow click event handlers
+      for (var i = 0; i < numImages; i++) {
+        $('#promptrow' + (i % numItems + 1) + '-img' + i + '-arrow-left').click(function() {
+          var index = parseInt($(this).data('index'));
+          if (index > 0) {
+            swapRankings(index, index - 1);
+          }
+        });
+        $('#promptrow' + (i % numItems + 1) + '-img' + i + '-arrow-right').click(function() {
+          var index = parseInt($(this).data('index'));
+          if (index < numImages - 1) {
+            swapRankings(index, index + 1);
+          }
+        });
+      }
 
-    //       if (targetImage.length) {
-    //         var currNumber = currImage.find(".number");
-    //         var targetNumber = targetImage.find(".number");
-    //         var tempText = currNumber.text();
-    //         currNumber.text(targetNumber.text());
-    //         targetNumber.text(tempText);
-
-    //         // Update the answer value
-    //         var order = container.find(".image .number").map(function() {
-    //           return $(this).text();
-    //         }).get().join(",");
-    //         container.find(".answer").val(order);
-    //       }
-    //     }
-    //   });
+      // Initial rankings update
+      updateRankings();
     });
   </script>
-
 </body>
 </html>

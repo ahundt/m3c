@@ -67,8 +67,7 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     country_name = get_country_name(country_csv_file)
     png_column_headers = get_png_column_headers(country_df)
     number_of_images = len(png_column_headers)
-    # print(f'survey_items_df: {survey_items_df}')
-    # print(f'country_df: {country_df}')
+    number_of_items = len(survey_items_df)
 
     # Create a Jinja2 environment
     env = Environment(loader=FileSystemLoader('.'))
@@ -76,70 +75,24 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     # Load the survey template HTML
     template = env.get_template(template_html)
 
-    # def make_images_block(number_of_images):
-    #     images_block = ''
-    #     for i in range(number_of_images):
-    #         images_block += f"""
-
-    #                 <div data-id="{i}" class="image">
-    #                     <span class="number">{i}</span>
-    #                     <img src="${{image{i}}}" alt="Image {i} style="width: 200px; height: auto;">
-    #                 </div>
-    #             """
-    #     return images_block
-
-    # # Prepare container block (simplified for Jinja)
-    # container_block = ''
-    # for i, row in survey_items_df.iterrows():
-    #     print(f'row {i}: {row}')
-    #     images_block = make_images_block(number_of_images)
-    #     container_block += f"""
-    #     <div class="sortable">
-    #         <div class="item">
-    #           <h2>{row['Item Title']}</h2>
-    #           <p>{row['Item Text']}</p>
-    #           <p>Image Description: <b>${{prompt}}</b></p>
-    #           {images_block}
-    #           <!-- Simplified conditions for other item types if needed -->
-    #         </div>
-    #     </div>
-    #     """
-
-    # # Crowd-form string substitution
-    # crowd_form = f"""
-    #     <crowd-form>
-    #         <div class="container">
-    #             {container_block}
-    #         </div>
-    #         <!-- Additional Crowd HTML Elements for Mechanical Turk -->
-    #         <short-instructions>
-    #             <p>{short_instructions}</p>
-    #         </short-instructions>
-    #         <full-instructions>
-    #             <p>{full_instructions}</p>
-    #             <!-- Additional detailed instructions go here -->
-    #         </full-instructions>
-    #     </crowd-form>
-    # """
-    def make_images_and_ratings_block(number_of_images):
+    def make_images_and_ratings_block(number_of_images, promptrow):
         images_and_ratings_block = ""
         for i in range(1, number_of_images+1):
             images_and_ratings_block += f"""
                 <td>
                     <div style="text-align: center;">
                         <img src="${{img{i}}}" style="width: 25vw; max-width: 200px; max-height: 200px;"/>
-                        <input type="number" id="img{i}-rating" name="img{i}-rating" value="{i}" required>
+                        <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value="{i}"  min="1" max="{{ number_of_images }}" required>
                     </div>
                 </td>
             """
         return images_and_ratings_block
 
-    # Create a combined block for images and ratings
-    images_and_ratings_block = make_images_and_ratings_block(number_of_images)
-
     # Create container block for images and ratings within the same table cell
     container_block = ""
     for i, row in survey_items_df.iterrows():
+        # Create a combined block for images and ratings
+        images_and_ratings_block = make_images_and_ratings_block(number_of_images, promptrow=i+1)
         # Add the description row with images and ratings
         container_block += f"""
             <tr>
@@ -175,7 +128,9 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     try:
         rendered_template = template.render(
             country=country_name,
-            crowd_form=crowd_form
+            crowd_form=crowd_form,
+            number_of_images=number_of_images,
+            number_of_items=number_of_items
         )
     except Exception as e:
         print(f"Jinja2 Error: {e}")
