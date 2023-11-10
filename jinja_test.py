@@ -40,10 +40,12 @@ def format_for_mturk_substitution(number_of_images):
 
 
 def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys"):
-    country_data = pd.read_csv(country_csv_file)
-    survey_items_data = pd.read_csv(survey_items_csv)
+    country_df = pd.read_csv(country_csv_file, quotechar='"')
+    survey_items_df = pd.read_csv(survey_items_csv, quotechar='"')
     country_name = get_country_name(country_csv_file)
-    number_of_images = len(get_png_column_headers(country_data))
+    number_of_images = len(get_png_column_headers(country_df))
+    print(f'survey_items_df: {survey_items_df}')
+    print(f'country_df: {country_df}')
 
     # Create a Jinja2 environment
     env = Environment(loader=FileSystemLoader('.'))
@@ -65,7 +67,8 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
 
     # Prepare container block (simplified for Jinja)
     container_block = ''
-    for _, row in survey_items_data.iterrows():
+    for i, row in survey_items_df.iterrows():
+        print(f'row {i}: {row}')
         images_block = make_images_block(number_of_images)
         container_block += f"""
         <div class="sortable">
