@@ -61,14 +61,14 @@ def format_for_mturk_substitution(number_of_images):
     return [f"image{i+1}" for i in range(number_of_images)]
 
 
-def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys"):
+def generate_survey_template(country_csv_file, survey_items_csv, template_html, short_instructions, full_instructions, output_folder="output_surveys", url_prefix="https://raw.githubusercontent.com/ahundt/m3c_eval/main"):
     country_df = pd.read_csv(country_csv_file, quotechar='"')
     survey_items_df = pd.read_csv(survey_items_csv, quotechar='"')
     country_name = get_country_name(country_csv_file)
     png_column_headers = get_png_column_headers(country_df)
     number_of_images = len(png_column_headers)
-    print(f'survey_items_df: {survey_items_df}')
-    print(f'country_df: {country_df}')
+    # print(f'survey_items_df: {survey_items_df}')
+    # print(f'country_df: {country_df}')
 
     # Create a Jinja2 environment
     env = Environment(loader=FileSystemLoader('.'))
@@ -140,6 +140,8 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     with open(survey_html_path, "w") as file:
         file.write(rendered_template)
 
+    # Process the survey CSV and save it to a file
+    country_df = update_image_paths(country_df, url_prefix)
     survey_csv_path = os.path.join(output_folder, f"{country_name}_survey.csv")
     # rename all the columns to image1, image2, etc.
     [country_df.rename(columns={col: f"image{i+1}"}, inplace=True) for i, col in enumerate(png_column_headers)]
@@ -160,7 +162,14 @@ def main():
         # Process the country survey
         survey_items_csv = args["items"]
         template_html = args["item_template"]
-        survey_html_path, survey_csv_path = generate_survey_template(country_csv, survey_items_csv, template_html, short_instructions=args["short_instructions"], full_instructions=args["full_instructions"], output_folder=args["output_folder"])
+        survey_html_path, survey_csv_path = generate_survey_template(
+            country_csv, 
+            survey_items_csv, 
+            template_html, 
+            short_instructions=args["short_instructions"], 
+            full_instructions=args["full_instructions"], 
+            output_folder=args["output_folder"],
+            url_prefix=args["url_prefix"])
 
         # Print paths to generated files
         print(f"Generated HTML file: {survey_html_path}")
