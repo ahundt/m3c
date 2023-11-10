@@ -25,6 +25,13 @@ def parse_args():
     parser.add_argument("--consent_text", type=str, default="You are being asked to participate in a research study being conducted by the Bot Intelligence Group at Carnegie Mellon University. Participation is voluntary. The purpose of this study is to understand ways to better represent culture in AI - generated images.  Any reports and presentations about the findings from this study will not include your name or any other information that could identify you.")
     return vars(parser.parse_args())
 
+country_name_to_adj = {
+    'China':'Chinese',
+    'India':'Indian',
+    'Mexico':'Mexican',
+    'Korea':'Korean',
+    'Nigeria':'Nigerian'
+}
 
 def get_png_column_headers(dataframe):
     """
@@ -78,10 +85,12 @@ def generate_survey_template(
     country_df = pd.read_csv(country_csv_file, quotechar='"')
     survey_items_df = pd.read_csv(survey_items_csv, quotechar='"')
     country_name = get_country_name(country_csv_file)
+    country_adj = country_name_to_adj[country_name]
     png_column_headers = get_png_column_headers(country_df)
     number_of_images = len(png_column_headers)
     number_of_items = len(survey_items_df)
     country_df['country'] = country_name
+    country_df['country_adj'] = country_adj
 
     # Create a Jinja2 environment
     env = Environment(loader=FileSystemLoader('.'))
@@ -112,8 +121,8 @@ def generate_survey_template(
             <tr>
                 <td style="text-align: left;">
                     <h3>{row['Item Title']}</h3>
-                    <p>Image Description: <b>${{prompt}}</b></i></p>
-                    <p>{row["Item Text"]} (1=best, {number_of_images}=worst)</p>
+                    {'<p>Image Description: <b>${{prompt}}</b></i></p>' if row['Include Description'] else ''}
+                    <p>{row["Item Text"]} </p>
                 </td>
                 {images_and_ratings_block}
             </tr>
