@@ -77,14 +77,18 @@ def generate_survey_template(country_csv_file, survey_items_csv, template_html, 
     template = env.get_template(template_html)
 
     def make_images_block(number_of_images):
+        # Updated block to include arrows and editable text boxes
         images_block = ''
         for i in range(number_of_images):
             images_block += f"""
-                                <div data-id="{i}" class="image">
-                                    <span class="number">{i}</span>
-                                    <img src="${{image{i}}}" alt="Image {i}" style="width: 200px; height: auto;">
-                                </div>
-                            """
+                <div data-id="{i}" class="image">
+                    <span class="number">{i + 1}</span>
+                    <input type="text" class="edit-box" name="image{i}" value="{i + 1}" />
+                    <span class="arrow left">&#9664;</span>
+                    <span class="arrow right">&#9654;</span>
+                    <img src="${{image{i}}}" alt="Image {i}" style="width: 200px; height: auto;">
+                </div>
+            """
         return images_block
 
     # Prepare container block (simplified for Jinja)
