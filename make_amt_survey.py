@@ -104,7 +104,7 @@ def generate_survey_template(
             images_and_ratings_block += f"""
                 <td>
                     <div style="text-align: center;">
-                        <img src="${{img{i}}}" style="width: 25vw; max-width: 200px; max-height: 200px;"/>
+                        <img src="${{img{i}}}" style="width: 25vw; max-width: 300px; max-height: 300px;"/>
                         <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value="" min="1" max="{number_of_images}" required>
                     </div>
                 </td>
@@ -119,11 +119,13 @@ def generate_survey_template(
         # Add the description row with images and ratings
         container_block += f"""
             <tr>
-                <td style="text-align: left;">
+                <td style="text-align: left;" colspan={number_of_images}>
                     <h3>{row['Item Title']}</h3>
                     {f'<p>Image Description: <b>${{prompt}}</b></i></p>' if row['Include Description'] else ''}
                     <p>{row["Item Text"]} </p>
                 </td>
+            </tr>
+            <tr>
                 {images_and_ratings_block}
             </tr>
         """

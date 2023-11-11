@@ -19,11 +19,15 @@
     hr {
       margin: 0.5rem;
     }
-    #question-container tr {
+    #question-container tr:nth-child(2n) {
       border-bottom: solid 1px;
     }
-    #question-container td {
-      padding: 1rem 0.5rem;
+    tr:nth-child(2n) td {
+      padding: 0rem 0rem 2rem 1rem;
+    }
+
+    tr:nth-child(2n+1) td {
+      padding: 4rem 0rem 0rem 0rem;
     }
     table {
       width: 100%;
@@ -50,7 +54,6 @@
           return results[1];    
       } 
     }
-
     $(document).ready(function() {
       // Get the worker ID, the seed, and the assignment ID from the URL
       var workerId = turkGetParam("workerId");
@@ -104,7 +107,7 @@
       }
 
       // Initial rankings update
-      updateRankings();
+      // updateRankings();
     });
   </script>
 </body>
