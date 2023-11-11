@@ -10,6 +10,7 @@
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
   <!-- Include Crowd HTML Elements Library -->
   <script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
   <!-- Define some custom CSS styles -->
   <style>
     p {
@@ -28,15 +29,32 @@
       width: 100%;
     }
   </style>
+  <!-- Define the 'fullurl' variable -->
+  <script>
+    var fullurl = window.location.href;
+  </script>
 </head>
 <body>
   {{crowd_form}}
 
   <script>
+    // get metadata from URL https://stackoverflow.com/a/23218428
+    function turkGetParam( name ) { 
+      var regexS = "[\?&]"+name+"=([^&#]*)"; 
+      var regex = new RegExp( regexS ); 
+      var tmpURL = fullurl; 
+      var results = regex.exec( tmpURL ); 
+      if( results == null ) { 
+          return ""; 
+      } else { 
+          return results[1];    
+      } 
+    }
+
     $(document).ready(function() {
       // Get the worker ID, the seed, and the assignment ID from the URL
       var workerId = turkGetParam("workerId");
-      var seed = turkGetParam("seed");
+      var seed = ${seed};
       var assignmentId = turkGetParam("assignmentId");
       // Create a random number generator based on the worker ID and the seed
       var random = new Math.seedrandom(workerId + seed);
