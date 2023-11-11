@@ -98,35 +98,45 @@ def generate_survey_template(
     # Load the survey template HTML
     template = env.get_template(template_html)
 
-    def make_images_and_ratings_block(number_of_images, promptrow):
-        images_and_ratings_block = ""
-        for i in range(1, number_of_images+1):
-            images_and_ratings_block += f"""
-                <td>
+    def make_input_block(item_type, promptrow):
+        input_block = ""
+        if item_type == "Rank":
+            for i in range(1, number_of_images + 1):
+                input_block += f"""
+                    <td>
+                        <div style="text-align: center;">
+                            <img src="${{img{i}}}" style="width: 25vw; max-width: 300px; max-height: 300px;"/>
+                            <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value="" min="1" max="{number_of_images}" required>
+                        </div>
+                    </td>
+                """
+        elif item_type == "Short Answer":
+            input_block += f"""
+                <td colspan={number_of_images}>
                     <div style="text-align: center;">
-                        <img src="${{img{i}}}" style="width: 25vw; max-width: 300px; max-height: 300px;"/>
-                        <input type="number" id="promptrow{promptrow}-img{i}-rating" name="promptrow{promptrow}-img{i}-rating" value="" min="1" max="{number_of_images}" required>
+                        <textarea id="promptrow{promptrow}-short-answer" name="promptrow{promptrow}-short-answer" rows="5" cols="40" maxlength="300" required></textarea>
                     </div>
                 </td>
             """
-        return images_and_ratings_block
+        return input_block
 
-    # Create container block for images and ratings within the same table cell
+    # Create container block for items within the same table cell
     container_block = ""
     for i, row in survey_items_df.iterrows():
-        # Create a combined block for images and ratings
-        images_and_ratings_block = make_images_and_ratings_block(number_of_images, promptrow=i+1)
-        # Add the description row with images and ratings
+        item_type = row["Item Type"]
+        # Create a block for input (ranking or short answer)
+        input_block = make_input_block(item_type, promptrow=i+1)
+        # Add the description row with the input
         container_block += f"""
             <tr>
                 <td style="text-align: left;" colspan={number_of_images}>
                     <h3>{row['Item Title']}</h3>
-                    {f'<p>Image Description: <b>${{prompt}}</b></i></p>' if row['Include Description'] else ''}
-                    <p style="max-width:50rem;">{row["Item Text"]} </p>
+                    {f'<p>Image Description: <b>${{prompt}}</b></p>' if row['Include Description'] else ''}
+                    <p style="max-width:50rem;">{row["Item Text"]}</p>
                 </td>
             </tr>
             <tr>
-                {images_and_ratings_block}
+                {input_block}
             </tr>
         """
     
