@@ -135,9 +135,7 @@ def generate_survey_template(
                 <h3>{consent_title} about Image Generators and {country_name}</h3>
                 <p>{consent_text}</p>
                 <!--<p>Your Mechanical Turk Worker ID will be used to distribute the payment to you, but we will not store your worker ID with your survey responses. Please be aware that your Mturk Workers ID can potentially be linked to information about you on your Amazon Public Profile page, however we will not access any personally identifying information from your Amazon Public Profile.</p>-->
-                <p>
-                    <label for="consent" style="color:red;"><b>By submitting answers to this survey, you are agreeing to participate in this study</b></label>
-                </p>
+                <p style="color: darkred; font-weight: bold;">By submitting answers to this survey, you are agreeing to participate in this study</p>
             </div>
             <div class="container">
                 <table style="text-align: center; max-width: 1600px;" id="question-container">
