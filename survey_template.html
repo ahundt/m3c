@@ -65,49 +65,6 @@
       // Initialize the survey
       var numImages = {{ number_of_images }}; // Replace with the actual number of images
       var numItems = {{ number_of_items }}; // Replace with the actual number of items
-      var rankings = [...Array(numImages)].map((_, i) => i + 1); // Initialize rankings from 1 to numImages
-
-      // Shuffle the rankings randomly
-      for (var i = numImages - 1; i > 0; i--) {
-        var j = Math.floor(random() * (i + 1));
-        var temp = rankings[i];
-        rankings[i] = rankings[j];
-        rankings[j] = temp;
-      }
-
-      // Update the rankings in the number boxes
-      function updateRankings() {
-        for (var i = 0; i < numImages; i++) {
-          $('#promptrow' + (i % numItems + 1) + '-img' + i + '-rating').val(rankings[i]);
-        }
-      }
-
-      // Handle arrow clicks to swap rankings
-      function swapRankings(index1, index2) {
-        var temp = rankings[index1];
-        rankings[index1] = rankings[index2];
-        rankings[index2] = temp;
-        updateRankings();
-      }
-
-      // Register arrow click event handlers
-      for (var i = 0; i < numImages; i++) {
-        $('#promptrow' + (i % numItems + 1) + '-img' + i + '-arrow-left').click(function() {
-          var index = parseInt($(this).data('index'));
-          if (index > 0) {
-            swapRankings(index, index - 1);
-          }
-        });
-        $('#promptrow' + (i % numItems + 1) + '-img' + i + '-arrow-right').click(function() {
-          var index = parseInt($(this).data('index'));
-          if (index < numImages - 1) {
-            swapRankings(index, index + 1);
-          }
-        });
-      }
-
-      // Initial rankings update
-      // updateRankings();
     });
   </script>
 </body>
