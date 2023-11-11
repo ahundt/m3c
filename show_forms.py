@@ -6,6 +6,13 @@ import re
 
 app = Flask(__name__)
 
+# Declare global variables
+html_files = []
+csv_files = []
+current_file = 0
+current_row = 0
+df = None
+html_template = None
 
 def load_data(html_file, csv_file):
     """
@@ -19,11 +26,10 @@ def load_data(html_file, csv_file):
         DataFrame: Loaded DataFrame from the CSV file.
         str: Loaded HTML template.
     """
-    df = pd.read_csv(csv_file)
+    loaded_df = pd.read_csv(csv_file)
     with open(html_file, 'r') as f:
         html_template = f.read()
-    return df, html_template
-
+    return loaded_df, html_template
 
 def process_template(html_files, csv_files, current_file, current_row, df, html_template):
     """
@@ -50,39 +56,35 @@ def process_template(html_files, csv_files, current_file, current_row, df, html_
         if current_file >= len(html_files):
             print("All files processed. Exiting...")
             os._exit(0)
-        df, html_template = load_data(html_files[current_file], csv_files[current_file])
+        loaded_df, html_template = load_data(html_files[current_file], csv_files[current_file])
+        df = loaded_df  # Assign the loaded DataFrame to the global variable
 
     # Perform text substitution based on the current row
     template_content = re.sub(r'\${(.*?)}', lambda match: str(df.iloc[current_row][match.group(1)]), html_template)
 
     current_row += 1
 
-    return template_content, current_file, current_row, df, html_template
-
+    return template_content
 
 @app.route('/')
 def index():
     """
     Define the Flask route for dynamic text substitution.
     """
-    template_content, current_file, current_row, df, html_template = process_template(html_files, csv_files, current_file, current_row, df, html_template)
+    global current_file, current_row, df, html_template
+    template_content = process_template(html_files, csv_files, current_file, current_row, df, html_template)
     return template_content
-
 
 def main():
     """
     Main function to run the dynamic text substitution Flask app.
     """
-    global current_file, current_row, df, html_template, html_files, csv_files
+    global html_files, csv_files, current_file, current_row, df, html_template
     parser = argparse.ArgumentParser(description='Dynamic Text Substitution for HTML Files')
     parser.add_argument('--folder', type=str, default="output_surveys", help='Folder containing HTML and CSV files')
     parser.add_argument('--shuffled', action='store_true', help='Choose shuffled versions if available')
     args = parser.parse_args()
 
-    html_files = []
-    csv_files = []
-    current_file = 0
-    current_row = 0
     file_extension = '_shuffled.csv' if args.shuffled else '.csv'
 
     # Collect HTML and CSV file paths
@@ -103,7 +105,6 @@ def main():
 
     # Start the Flask app
     app.run(debug=True)
-
 
 if __name__ == '__main__':
     main()
