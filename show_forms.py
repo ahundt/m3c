@@ -38,20 +38,26 @@ def load_data(html_file, csv_file):
     with open(html_file, 'r') as f:
         html_template = f.read()
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Dynamic Text Substitution for HTML Files')
     parser.add_argument('--folder', type=str, default="output_surveys", help='Folder containing HTML and CSV files')
+    parser.add_argument('--shuffled', action='store_true', help='Choose shuffled versions if available')
     args = parser.parse_args()
 
+    file_extension = '_shuffled.csv' if args.shuffled else '.csv'
+
     html_files = [os.path.join(args.folder, file) for file in os.listdir(args.folder) if file.endswith('.html')]
-    csv_files = [os.path.join(args.folder, file) for file in os.listdir(args.folder) if file.endswith('.csv')]
+    csv_files = [os.path.join(args.folder, file) for file in os.listdir(args.folder) if file.endswith(file_extension)]
+
+    if not args.shuffled:
+        # Filter CSV files to include only those with matching prefixes to HTML files
+        html_prefixes = set(os.path.splitext(os.path.basename(file))[0] for file in html_files)
+        csv_files = [file for file in csv_files if os.path.splitext(os.path.basename(file))[0] in html_prefixes]
 
     if not html_files or not csv_files or len(html_files) != len(csv_files):
         print("Error: Make sure there are equal numbers of HTML and CSV files in the specified folder.")
-        os._exit(1)
+        return
 
-    current_file = 0
-    current_row = 0
     df = pd.DataFrame()
     html_template = None
 
@@ -59,3 +65,8 @@ if __name__ == '__main__':
 
     # Start the Flask app
     app.run(debug=True)
+
+if __name__ == '__main__':
+    current_file = 0
+    current_row = 0
+    main()
