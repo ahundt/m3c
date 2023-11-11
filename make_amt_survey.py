@@ -122,7 +122,7 @@ def generate_survey_template(
                 <td style="text-align: left;" colspan={number_of_images}>
                     <h3>{row['Item Title']}</h3>
                     {f'<p>Image Description: <b>${{prompt}}</b></i></p>' if row['Include Description'] else ''}
-                    <p>{row["Item Text"]} </p>
+                    <p style="max-width:50rem;">{row["Item Text"]} </p>
                 </td>
             </tr>
             <tr>
