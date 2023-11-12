@@ -98,7 +98,7 @@ def generate_survey_template(
     # Load the survey template HTML
     template = env.get_template(template_html)
 
-    def make_input_block(item_type, promptrow):
+    def make_input_block(item_type, promptrow, number_of_images, label_text=""):
         input_block = ""
         if item_type == "Rank":
             for i in range(1, number_of_images + 1):
@@ -118,6 +118,19 @@ def generate_survey_template(
                     </div>
                 </td>
             """
+        elif item_type == "Binary Checkbox":
+            for i in range(1, number_of_images + 1):
+                input_block += f"""
+                    <td>
+                        <div style="text-align: center;">
+                            <img src="${{img{i}}}" style="width: 25vw; max-width: 300px; max-height: 300px;"/>
+                            <label for="promptrow{promptrow}-img{i}-checkbox">
+                                <input type="checkbox" id="promptrow{promptrow}-img{i}-checkbox" name="promptrow{promptrow}-img{i}-checkbox" value="1">
+                                {label_text}
+                            </label>
+                        </div>
+                    </td>
+                """
         return input_block
 
     # Create container block for items within the same table cell
@@ -125,7 +138,7 @@ def generate_survey_template(
     for i, row in survey_items_df.iterrows():
         item_type = row["Item Type"]
         # Create a block for input (ranking or short answer)
-        input_block = make_input_block(item_type, promptrow=i+1)
+        input_block = make_input_block(item_type, promptrow=i+1, number_of_images=number_of_images)
         # Add the description row with the input
         container_block += f"""
             <tr>
