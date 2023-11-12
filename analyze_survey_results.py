@@ -66,6 +66,8 @@ def process_survey_results_csv(csv_file, survey_items_file):
     # Call Statistical Analysis Function
     statistical_analysis(df)
 
+    return df
+
 
 def main():
     # Command Line Parameter Parsing
