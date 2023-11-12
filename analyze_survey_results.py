@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 import json
 
+
 def extract_and_process_entry(entry, value):
     if value is None or value == "":
         return None
@@ -14,6 +15,7 @@ def extract_and_process_entry(entry, value):
     else:
         raise ValueError(f"Unexpected format in taskAnswers: {entry}")
 
+
 def extract_and_process_task_answers(task_answers):
     task_answers_dict = json.loads(task_answers)
     ratings_data = {}
@@ -23,20 +25,17 @@ def extract_and_process_task_answers(task_answers):
 
     return pd.Series(ratings_data)  # Convert the dictionary to a Series
 
+
 def statistical_analysis(data):
     # Define your statistical analysis here
     # You can use functions from libraries like NumPy and pandas
     print(data)
     data.to_csv("statistical_output.csv")
 
-def main():
-    # Command Line Parameter Parsing
-    parser = argparse.ArgumentParser(description="Survey Data Analysis")
-    parser.add_argument("--csv_file", type=str, default="Batch_393773_batch_results.csv", help="Path to the input CSV file")
-    args = parser.parse_args()
 
+def process_survey_results_csv(csv_file):
     # Load CSV Data Using Pandas
-    df = pd.read_csv(args.csv_file)
+    df = pd.read_csv(csv_file)
 
     # Apply extract_and_process_task_answers to extract and process ratings data
     ratings_df = df['Answer.taskAnswers'].apply(extract_and_process_task_answers)
@@ -46,6 +45,15 @@ def main():
 
     # Call Statistical Analysis Function
     statistical_analysis(df)
+
+
+def main():
+    # Command Line Parameter Parsing
+    parser = argparse.ArgumentParser(description="Survey Data Analysis")
+    parser.add_argument("--csv_file", type=str, default="Batch_393773_batch_results.csv", help="Path to the input CSV file")
+    args = parser.parse_args()
+
+    process_survey_results_csv(args.csv_file)
 
 if __name__ == "__main__":
     main()
