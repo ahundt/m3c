@@ -27,6 +27,7 @@ def statistical_analysis(data):
     # Define your statistical analysis here
     # You can use functions from libraries like NumPy and pandas
     print(data)
+    data.to_csv("statistical_output.csv")
 
 def main():
     # Command Line Parameter Parsing
