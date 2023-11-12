@@ -45,7 +45,9 @@ def process_survey_results_csv(csv_file, survey_items_file):
     df = pd.concat([df, ratings_df], axis=1)
 
     # Extract country name from the survey results "Title" column
-    country_name = df['Title'].str.extract(r"\((.*?)\)", expand=False)
+    # Assuming the last word in the "Title" column is the country name
+    df['Title'] = df['Title'].str.strip()  # Remove leading/trailing spaces
+    country_name = df['Title'].str.split().str[-1]
 
     # Get the input image columns like "Input.img1" to find the number of images per item
     image_columns = [col for col in df.columns if col.startswith("Input.img")]
