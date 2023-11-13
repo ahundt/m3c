@@ -37,8 +37,16 @@ cd m3c
 
 2. **Install Dependencies**: Make sure you have Python installed (Python 3.6+). Install the required Python packages using pip:
 
+Note the commands may vary depending on your individual computer setup. Installing the requirements might take a bit of searching of the web for some cases.
+
 ```
 pip install -r requirements.txt
+```
+
+Alternative package install command:
+
+```
+pip3 install boto3 Flask Jinja2 pandas Requests tqdm "crowd-kit[learning]" --user --upgrade
 ```
 
 3. **Configuration**: Edit the configuration in `config.py` to set your preferences and paths to datasets.
