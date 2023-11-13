@@ -185,7 +185,7 @@ def process_survey_results_csv(csv_file, survey_items_file, network_models):
     """ Read and reorganize one CSV file of survey results into a DataFrame to prepare for statistical analysis.
 
         Load the csv files, add the survey metadata, and put each element of a response on a separate row
-        An element of a response is a single image rank, a single binary checkbox, or a single short answer.
+        A value in the response column is a single image rank, a single binary checkbox, or a single short answer.
         
         The new columns added are:
              "Item Title Index", "Item Title", "Item Type", "Neural Network Model", 
@@ -284,7 +284,12 @@ def main():
 
     # Load the csv files, add the survey metadata, and put each element of a response on a separate row
     # An element of a response is a single image rank, a single binary checkbox, or a single short answer.
-    # The new columns added are "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", and "Response".
+    #
+    # The new columns added are:
+    # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index".
+    # 
+    # The key columns of df, including new columns added are: 
+    # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
     dataframes = []
     for csv_file in csv_files:
         df = process_survey_results_csv(csv_file, args.survey_items_file, args.network_models)
