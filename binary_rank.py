@@ -8,6 +8,7 @@ import pandas as pd
 from itertools import combinations
 import csv
 
+
 def binary_rank_table(df, network_models):
     """
     Break down rank items into binary image comparison tasks and create a new DataFrame.
@@ -77,7 +78,11 @@ def binary_rank_table(df, network_models):
     return binary_rank_df
 
 
-def simplify_binary_rank_table(binary_rank_df):
+def simplify_binary_rank_table(
+        binary_rank_df, 
+        task_columns=['Left Binary Rank Image', 'Right Binary Rank Image', 'Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country', 'Input.prompt', 'Input.seed'],
+        worker_column='WorkerId',
+        label_column='Binary Rank Response Left is Greater'):
     """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string.
 
     The purpose of this function is to convert the binary rank table into a format that can be used by the
@@ -95,6 +100,9 @@ def simplify_binary_rank_table(binary_rank_df):
     Parameters:
 
         binary_rank_df (pandas.DataFrame): The DataFrame containing binary rank responses.
+        task_columns (list): List of column names to group by, and concatenate into a single string.
+        worker_column (str): Name of the column containing the worker ids.
+        label_column (str): Name of the column containing the labels.
     
     Returns:
 
@@ -109,16 +117,7 @@ def simplify_binary_rank_table(binary_rank_df):
     binary_rank_df = binary_rank_df.astype(str)
 
     # Group by the specified columns
-    grouped = binary_rank_df.groupby([
-        'Left Binary Rank Image', 'Right Binary Rank Image',
-        'Left Neural Network Model', 'Right Neural Network Model',
-        'Item Title Index', 'Item Title', 'Item Type',
-        'Country', 'Input.prompt', 'Input.seed'
-    ])
-
-    # Function to aggregate the grouped columns into a single string
-    # def concatenate_columns(series):
-    #     return ', '.join(series.astype(str))
+    grouped = binary_rank_df.groupby(task_columns)
 
     # Aggregate the columns into a single string
     simplified_table = grouped.agg({
@@ -126,25 +125,17 @@ def simplify_binary_rank_table(binary_rank_df):
         'Binary Rank Response Left is Greater': 'first'
     }).reset_index()
 
-    # Add the combined columns
-    combined_columns = [
-        'Left Binary Rank Image', 'Right Binary Rank Image',
-        'Left Neural Network Model', 'Right Neural Network Model',
-        'Item Title Index', 'Item Title', 'Item Type',
-        'Country', 'Input.prompt', 'Input.seed'
-    ]
-
     # double for loop to concatenate the titles and values of the combined columns into a single string per row
     st2 = pd.DataFrame()
-    st2['task'] = simplified_table[combined_columns[0]]
-    for col in combined_columns[1:]:
+    st2['task'] = simplified_table[task_columns[0]]
+    for col in task_columns[1:]:
         st2['task'] = st2['task'] + '|' + simplified_table[col]
     st2['worker'] = simplified_table['WorkerId']
     st2['label'] = simplified_table['Binary Rank Response Left is Greater']
 
     # st2.to_csv('simplified_binary_rank_table.csv', index=False, quoting=csv.QUOTE_ALL)
 
-    combined_columns = '|'.join(combined_columns)
+    task_columns = '|'.join(task_columns)
     worker_column = 'WorkerId'
     label_column = 'Binary Rank Response Left is Greater'
     # make a map from the task column to integer ids
@@ -161,7 +152,7 @@ def simplify_binary_rank_table(binary_rank_df):
     st2_int['label'] = st2['label'].map(label_to_id)
 
     # store the column names as a list
-    column_titles = [combined_columns, worker_column, label_column]
+    column_titles = [task_columns, worker_column, label_column]
 
     # return the simplified int table, the maps, and the column names
     return st2_int, task_to_id, worker_to_id, label_to_id, column_titles
