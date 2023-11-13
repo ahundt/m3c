@@ -78,10 +78,40 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
 
 
 def statistical_analysis(df, network_models):
+    """ Perform statistical analysis on the DataFrame.
+
+        Parameters:
+            df (pandas.DataFrame): The DataFrame containing worker responses.
+                The key columns are: "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
+                Note that the "Response" column is the rating for part of an item, such as an individual image's rank.
+            network_models (list): List of network models used for matching image columns.
+
+        Returns:
+            pandas.DataFrame: The aggregated DataFrame with results.
+    """
     # Assess worker responses
     # Define your statistical analysis here
     print(df)
-    df.to_csv("statistical_output.csv")
+    df.to_csv("statistical_analysis_input.csv")
+
+    # Group the DataFrame by "Neural Network Model," "Country," and "Item Title"
+    grouped = df.groupby(["Neural Network Model", "Country", "Item Title"])
+
+    # Define the aggregation functions you want to apply
+    aggregation_functions = {
+        "Response": "sem",  # You can change this aggregation function as needed
+        "Response": "count",  # You can change this aggregation function as needed
+        "Response": "median",  # You can change this aggregation function as needed
+        # range
+        "Response": "min",  # You can change this aggregation function as needed
+        "Response": "max",  # You can change this aggregation function as needed=
+    }
+
+    # Perform aggregation and reset the index
+    aggregated_df = grouped.agg(aggregation_functions).reset_index()
+
+    # Save the aggregated DataFrame to a CSV file
+    aggregated_df.to_csv("aggregated_statistical_output.csv", index=False)
 
     binary_rank_df = binary_rank.binary_rank_table(df, network_models)
     binary_rank_df.to_csv("statistical_output_binary_rank.csv")
@@ -89,6 +119,8 @@ def statistical_analysis(df, network_models):
     worker_skills = assess_worker_responses(binary_rank_df)
 
     # TODO(ahundt) add statistical analysis here, save results to a file, and visualize them
+
+    return aggregated_df
 
 
 def assign_network_models_to_duplicated_rows(
@@ -342,7 +374,7 @@ def main():
     
     # Concatenate the DataFrames
     combined_df = pd.concat(dataframes, axis=0)
-    statistical_analysis(combined_df, args.network_models)
+    aggregated_df = statistical_analysis(combined_df, args.network_models)
 
 if __name__ == "__main__":
     main()
