@@ -78,28 +78,29 @@ def binary_rank_table(df, network_models):
 
     return binary_rank_df
 
-# Example usage with your provided data
-data = {
-    'Item Title Index': [1, 1, 2, 2, 3, 3],
-    'Item Title': ['Title1', 'Title1', 'Title2', 'Title2', 'Title3', 'Title3'],
-    'Item Type': ['Rank', 'Rank', 'Rank', 'Rank', 'Rank', 'Rank'],
-    'Neural Network Model': ['baseline', 'contrastive', 'baseline', 'contrastive', 'baseline', 'contrastive'],
-    'Image File Path': ['img1.png', 'img2.png', 'img1.png', 'img2.png', 'img1.png', 'img2.png'],
-    'Image Shuffle Index': [1, 2, 1, 2, 1, 2],  # Add this line
-    'Response': [2, 1, 3, 4, 2, 3],
-    'HITId': ['hit1', 'hit1', 'hit2', 'hit2', 'hit3', 'hit3'],
-    'Country': ['Country1', 'Country1', 'Country2', 'Country2', 'Country3', 'Country3'],
-    'Source CSV Row Index': [1, 2, 3, 4, 5, 6],
-    'Input.prompt': ['Prompt1', 'Prompt1', 'Prompt2', 'Prompt2', 'Prompt3', 'Prompt3'],
-    'Input.seed': [123, 123, 456, 456, 789, 789],
-    'WorkerId': ['Worker1', 'Worker1', 'Worker2', 'Worker2', 'Worker3', 'Worker3']
-}
+if __name__ == "__main__":
+    # Example usage with your provided data
+    data = {
+        'Item Title Index': [1, 1, 2, 2, 3, 3],
+        'Item Title': ['Title1', 'Title1', 'Title2', 'Title2', 'Title3', 'Title3'],
+        'Item Type': ['Rank', 'Rank', 'Rank', 'Rank', 'Rank', 'Rank'],
+        'Neural Network Model': ['baseline', 'contrastive', 'baseline', 'contrastive', 'baseline', 'contrastive'],
+        'Image File Path': ['img1.png', 'img2.png', 'img1.png', 'img2.png', 'img1.png', 'img2.png'],
+        'Image Shuffle Index': [1, 2, 1, 2, 1, 2],  # Add this line
+        'Response': [2, 1, 3, 4, 2, 3],
+        'HITId': ['hit1', 'hit1', 'hit2', 'hit2', 'hit3', 'hit3'],
+        'Country': ['Country1', 'Country1', 'Country2', 'Country2', 'Country3', 'Country3'],
+        'Source CSV Row Index': [1, 2, 3, 4, 5, 6],
+        'Input.prompt': ['Prompt1', 'Prompt1', 'Prompt2', 'Prompt2', 'Prompt3', 'Prompt3'],
+        'Input.seed': [123, 123, 456, 456, 789, 789],
+        'WorkerId': ['Worker1', 'Worker1', 'Worker2', 'Worker2', 'Worker3', 'Worker3']
+    }
 
-df = pd.DataFrame(data)
+    df = pd.DataFrame(data)
 
-network_models = ["baseline", "contrastive"]
+    network_models = ["baseline", "contrastive"]
 
-binary_rank_df = binary_rank_table(df, network_models)
+    binary_rank_df = binary_rank_table(df, network_models)
 
-# Save the binary rank results to a CSV file
-binary_rank_df.to_csv('binary_rank_results.csv', index=False)
+    # Save the binary rank results to a CSV file
+    binary_rank_df.to_csv('binary_rank_results.csv', index=False)
