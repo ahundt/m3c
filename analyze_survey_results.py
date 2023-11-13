@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 import json
 import os
+import re
 
 
 def extract_and_process_entry(entry, value):
@@ -29,12 +30,127 @@ def extract_and_process_task_answers(task_answers):
 
 def statistical_analysis(data):
     # Define your statistical analysis here
-    # You can use functions from libraries like NumPy and pandas
     print(data)
     data.to_csv("statistical_output.csv")
 
 
-def process_survey_results_csv(csv_file, survey_items_file):
+def assign_network_models_to_duplicated_rows(
+    dataframe, 
+    duplicate_column="Item Type", 
+    match_values=["Rank", "Binary Checkbox"], 
+    new_column_name="Neural Network Model", 
+    network_models=["baseline", "contrastive", "genericSD", "positive"]
+):
+    """
+    Assign specified network models to duplicated rows in a DataFrame based on matching values in a column.
+
+    This function duplicates df rows with "Rank" "Item Type" by the number of network models
+    because that is the number of ratings per item, e.g. individual ranks or individual binary checkboxes.
+
+    Parameters:
+        dataframe (pandas.DataFrame): The DataFrame to modify.
+        duplicate_column (str, optional): The name of the column used to filter rows for duplication (default is "Item Type").
+        match_values (list, optional): List of values in 'duplicate_column' to trigger duplication (default is ["Rank", "Binary Checkbox"]).
+        new_column_name (str, optional): The name of the new column to add on duplicated rows (default is "Neural Network Model").
+        network_models (list, optional): List of network models to assign on duplicated rows (default is ["baseline", "contrastive", "genericSD", "positive"]).
+
+    Returns:
+        pandas.DataFrame: A new DataFrame with the specified column added on duplicated rows.
+    """
+    
+    # Filter rows based on 'duplicate_column' and 'match_values'
+    filtered_dataframe = dataframe[dataframe[duplicate_column].isin(match_values)]
+
+    # Create a new DataFrame with repeated rows for each value in 'network_models'
+    final_dataframe = filtered_dataframe.loc[filtered_dataframe.index.repeat(len(network_models))].reset_index(drop=True)
+
+    # Add the new column and set it to the values in 'network_models'
+    final_dataframe[new_column_name] = network_models * len(filtered_dataframe)
+
+    # Merge the final DataFrame with the original DataFrame using an outer join
+    result_dataframe = dataframe.merge(final_dataframe, how="left", on=dataframe.columns.tolist())
+
+    # Fill NaN values with None
+    result_dataframe.fillna("None", inplace=True)
+
+    return result_dataframe
+
+
+def add_additional_columns(df, human_survey_items, network_models):
+    # Create "Source CSV Row Index" column
+    df['Source CSV Row Index'] = df.index
+    df_initial_size = len(df)
+
+    # Add "Item Title Index" column to human_survey_items
+    human_survey_items['Item Title Index'] = human_survey_items.index + 1
+    num_items = len(human_survey_items)
+
+    # Duplicate df by the number of items
+    df = df.loc[df.index.repeat(num_items)].reset_index(drop=True)
+
+    # Assign Tiled "Item Title", "Item Title Index", and 'Item Type' values to df
+    df['Item Title'] = human_survey_items['Item Title'].tolist() * df_initial_size
+    df['Item Title Index'] = human_survey_items['Item Title Index'].tolist() * df_initial_size
+    df['Item Type'] = human_survey_items['Item Type'].tolist() * df_initial_size
+
+    # Duplicate df rows with "Rank" "Item Type" by the number of network models
+    # because that is the number of ratings per item, e.g. individual ranks or individual binary checkboxes.
+    df = assign_network_models_to_duplicated_rows(df)
+
+    return df
+
+
+def modify_dataframe(df, network_models):
+    """
+    Modify a DataFrame by adding new columns based on image-related columns.
+
+    Parameters:
+        df (pandas.DataFrame): The DataFrame to be modified.
+        network_models (list): List of network models used for matching image columns.
+
+    Returns:
+        pandas.DataFrame: The modified DataFrame.
+    """
+
+    # Get the list of image-related columns
+    img_columns = [col for col in df.columns if col.startswith("Input.img")]
+    df_columns = df.columns
+    print(df_columns)
+
+    # Use regex to read trailing integers from the columns and create a mapping
+    col_mapping = {col: int(re.search(r'\d+$', col).group()) for col in img_columns}
+
+    # Initialize new columns with None values
+    df['Image File Path'] = None
+    df['Image Shuffle Index'] = None
+    df['Response'] = None
+
+    # Iterate through rows of the DataFrame
+    for idx, row in df.iterrows():
+        if row['Neural Network Model'] is not None:  # Step 1
+            folder_name = row['Neural Network Model']
+
+            # Search for matching image data in image-related columns using the mapping
+            for col, image_shuffle_index in col_mapping.items():
+                file_path = row[col]
+
+                # Check if folder_name is in the file_path
+                if folder_name in file_path:
+                    # Create the column name for "Response"
+                    response_column_name = f"promptrow{row['Item Title Index']}-img{image_shuffle_index}-rating"
+
+                    # Assign the values to the new columns
+                    df.at[idx, 'Image File Path'] = file_path
+                    df.at[idx, 'Image Shuffle Index'] = image_shuffle_index
+                    df.at[idx, 'Response'] = row[response_column_name]
+
+    # Drop the original image-related columns
+    # df.drop(columns=img_columns, inplace=True)
+
+    return df
+
+
+def process_survey_results_csv(csv_file, survey_items_file, network_models):
     # Load CSV Data Using Pandas
     df = pd.read_csv(csv_file)
 
@@ -48,25 +164,49 @@ def process_survey_results_csv(csv_file, survey_items_file):
     # Assuming the last word in the "Title" column is the country name
     df['Title'] = df['Title'].str.strip()  # Remove leading/trailing spaces
     country_name = df['Title'].str.split().str[-1]
-
-    # Get the input image columns like "Input.img1" to find the number of images per item
-    image_columns = [col for col in df.columns if col.startswith("Input.img")]
-    num_images_per_item = len(image_columns)
+    df['Country'] = country_name
 
     # Determine the number of items for analysis from human_survey_items.csv
     human_survey_items = pd.read_csv(survey_items_file)
     num_items = len(human_survey_items)
+    
+    df = add_additional_columns(df, human_survey_items, network_models)
+    df = modify_dataframe(df, network_models)
 
-    # You can now perform further analysis based on the extracted data
-    print(f"Country: {country_name.iloc[0]}")
-    print(f"Number of Items: {num_items}")
-    print(f"Number of Images per Item: {num_images_per_item}")
-    print(df)
-
-    # Call Statistical Analysis Function
     statistical_analysis(df)
 
-    return df
+
+def test():
+    """ Small tests of the functions in this file.
+    """
+    # Example usage of modify_dataframe():
+    # Corrected example usage with data format:
+    data = {
+        'Input.img1': ['abc/hello1.png', 'def/helo2.png', 'ghi/hello3.png'],
+        'Input.img2': ['def/ty.png', 'abc/as.png', 'ghi/io.png'],
+        'Item Title Index': [1, 2, 3],
+        'Neural Network Model': ['abc', 'def', None]  # Step 1
+    }
+
+    # Columns needed for response_column_name
+    for idx in range(1, 4):  # Assuming promptrow1, promptrow2, promptrow3 are used
+        for img_index in range(1, 3):  # Assuming img1 and img2 are used
+            data[f'promptrow{idx}-img{img_index}-rating'] = [1, 2, 3]
+
+    df = pd.DataFrame(data)
+    network_models = ['abc', 'def']
+    df = modify_dataframe(df, network_models)
+    # print(df)
+
+
+    # Example usage of assign_network_models_to_duplicated_rows():
+    data = {
+        "Item Type": ["Rank", "Binary Checkbox", "Other"],
+        "Other_Column": [1, 2, 3]
+    }
+    df = pd.DataFrame(data)
+    result = assign_network_models_to_duplicated_rows(df)
+    # print(result)
 
 
 def main():
@@ -74,18 +214,18 @@ def main():
     parser = argparse.ArgumentParser(description="Survey Data Analysis")
     parser.add_argument("--response_results", type=str, default="Batch_393773_batch_results.csv", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
     parser.add_argument("--survey_items_file", type=str, default="human_survey_items.csv", help="Path to the human_survey_items.csv file")
+    parser.add_argument("--network_models", type=str, nargs='+', default=["baseline", "contrastive", "genericSD", "positive"], help="List of neural network model names")
     args = parser.parse_args()
+
+    test()
 
     if os.path.isfile(args.response_results):
         csv_files = [args.response_results]
     elif os.path.isdir(args.response_results):
-        # List all CSV files in the results folder
-        csv_files = [os.path.join(args.results_folder, filename) for filename in os.listdir(args.response_results) if filename.endswith(".csv")]
+        csv_files = [os.path.join(args.response_results, filename) for filename in os.listdir(args.response_results) if filename.endswith(".csv")]
 
-    # Loop through all CSV files and call process_survey_results_csv on each
     for csv_file in csv_files:
-        process_survey_results_csv(csv_file, args.survey_items_file)
-
+        process_survey_results_csv(csv_file, args.survey_items_file, args.network_models)
 
 if __name__ == "__main__":
     main()
