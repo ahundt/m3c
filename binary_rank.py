@@ -83,7 +83,8 @@ def simplify_binary_rank_table(
         binary_rank_df, 
         task_columns=['Left Binary Rank Image', 'Right Binary Rank Image', 'Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country', 'Input.prompt', 'Input.seed'],
         worker_column='WorkerId',
-        label_column='Binary Rank Response Left Image is Greater'):
+        label_column='Binary Rank Response Left Image is Greater',
+        separator='|'):
     """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string.
 
     The purpose of this function is to convert the binary rank table into a format that can be used by the
@@ -130,7 +131,7 @@ def simplify_binary_rank_table(
     st2 = pd.DataFrame()
     st2['task'] = simplified_table[task_columns[0]]
     for col in task_columns[1:]:
-        st2['task'] = st2['task'] + '|' + simplified_table[col]
+        st2['task'] = st2['task'] + separator + simplified_table[col]
     st2['worker'] = simplified_table[worker_column]
     st2['label'] = simplified_table[label_column]
 
@@ -157,7 +158,7 @@ def simplify_binary_rank_table(
     return st2_int, task_to_id, worker_to_id, label_to_id, column_titles
 
 
-def restore_binary_rank_table(st2_int, task_to_id, worker_to_id, label_to_id, column_titles):
+def restore_binary_rank_table(st2_int, task_to_id, worker_to_id, label_to_id, column_titles, separator='|'):
     """ Restore the binary rank table from the simplified table.
     """
     # restore the task column from integer ids to strings
@@ -167,7 +168,7 @@ def restore_binary_rank_table(st2_int, task_to_id, worker_to_id, label_to_id, co
     st2['label'] = st2_int['label'].map({v: k for k, v in label_to_id.items()})
 
     # split the task column into the original columns
-    combined_columns = column_titles[0].split('|')
+    combined_columns = column_titles[0].split(separator)
     for i, col in enumerate(combined_columns):
         st2[col] = st2['task'].apply(lambda x: x.split('|')[i])
 
