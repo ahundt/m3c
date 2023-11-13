@@ -82,7 +82,10 @@ def statistical_analysis(df, network_models):
 
         Parameters:
             df (pandas.DataFrame): The DataFrame containing worker responses.
-                The key columns are: "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
+                The key columns are: 
+                    "Item Title Index", "Item Title", "Item Type", "Neural Network Model", 
+                    "Image File Path", "Image Shuffle Index", "Response", "Country", 
+                    "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
                 Note that the "Response" column is the rating for part of an item, such as an individual image's rank.
             network_models (list): List of network models used for matching image columns.
 
@@ -99,12 +102,9 @@ def statistical_analysis(df, network_models):
 
     # Define the aggregation functions you want to apply
     aggregation_functions = {
-        "Response": "sem",  # You can change this aggregation function as needed
-        "Response": "count",  # You can change this aggregation function as needed
-        "Response": "median",  # You can change this aggregation function as needed
-        # range
-        "Response": "min",  # You can change this aggregation function as needed
-        "Response": "max",  # You can change this aggregation function as needed=
+        "Response": ["count", "median", "min", "max", "sem"],
+        "WorkerId": ["nunique"],
+        "Country": ["nunique"]
     }
 
     # Perform aggregation and reset the index
