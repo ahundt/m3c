@@ -82,7 +82,7 @@ def simplify_binary_rank_table(
         binary_rank_df, 
         task_columns=['Left Binary Rank Image', 'Right Binary Rank Image', 'Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country', 'Input.prompt', 'Input.seed'],
         worker_column='WorkerId',
-        label_column='Binary Rank Response Left is Greater'):
+        label_column='Binary Rank Response Left Image is Greater'):
     """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string.
 
     The purpose of this function is to convert the binary rank table into a format that can be used by the
@@ -121,8 +121,8 @@ def simplify_binary_rank_table(
 
     # Aggregate the columns into a single string
     simplified_table = grouped.agg({
-        'WorkerId': 'first',
-        'Binary Rank Response Left is Greater': 'first'
+        worker_column: 'first',
+        label_column: 'first'
     }).reset_index()
 
     # double for loop to concatenate the titles and values of the combined columns into a single string per row
@@ -130,14 +130,12 @@ def simplify_binary_rank_table(
     st2['task'] = simplified_table[task_columns[0]]
     for col in task_columns[1:]:
         st2['task'] = st2['task'] + '|' + simplified_table[col]
-    st2['worker'] = simplified_table['WorkerId']
-    st2['label'] = simplified_table['Binary Rank Response Left is Greater']
+    st2['worker'] = simplified_table[worker_column]
+    st2['label'] = simplified_table[label_column]
 
     # st2.to_csv('simplified_binary_rank_table.csv', index=False, quoting=csv.QUOTE_ALL)
 
     task_columns = '|'.join(task_columns)
-    worker_column = 'WorkerId'
-    label_column = 'Binary Rank Response Left is Greater'
     # make a map from the task column to integer ids
     task_to_id = {task: i for i, task in enumerate(st2['task'].unique())}
     # make a map from the worker column to integer ids
@@ -220,7 +218,7 @@ if __name__ == "__main__":
         'Input.prompt': ['Prompt1', 'Prompt2', 'Prompt3'],
         'Input.seed': [123, 456, 789],
         'WorkerId': ['Worker1', 'Worker2', 'Worker3'],
-        'Binary Rank Response Left is Greater': [True, False, True]
+        'Binary Rank Response Left Image is Greater': [True, False, True]
     }
 
     binary_rank_df = pd.DataFrame(data)
