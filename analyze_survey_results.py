@@ -76,7 +76,26 @@ def assign_network_models_to_duplicated_rows(
     return result_dataframe
 
 
-def add_additional_columns(df, human_survey_items, network_models):
+def add_survey_item_data_to_dataframe(df, human_survey_items, network_models):
+    """ The survey is divided into items like "offensiveness" and "image and description alignment",
+        so here we add the item titles, the type of item (e.g. Rank, Binary Checkbox or Short Answer),
+        and the network models used for each item to the DataFrame. This is done by duplicating the rows
+        in the DataFrame.
+
+        New columns added:
+        - "Item Title" specifying the descriptive title of the item, e.g. "offensiveness".
+        - "Item Title Index" specifying the index of the item title from human_survey_item csv rows, e.g. 1 for "offensiveness".
+        - "Item Type" specifying the type of item, e.g. Rank, Binary Checkbox or Short Answer.
+        - "Neural Network Model" specifying the network model used for that item response component to be used in the ablation.
+
+        Parameters:
+            df (pandas.DataFrame): The DataFrame to modify.
+            human_survey_items (pandas.DataFrame): The DataFrame containing survey item data.
+            network_models (list): List of network models used for matching image columns.
+        
+        Returns:
+            pandas.DataFrame: A new DataFrame with the specified columns added.
+    """
     # Create "Source CSV Row Index" column
     df['Source CSV Row Index'] = df.index
     df_initial_size = len(df)
@@ -95,12 +114,12 @@ def add_additional_columns(df, human_survey_items, network_models):
 
     # Duplicate df rows with "Rank" "Item Type" by the number of network models
     # because that is the number of ratings per item, e.g. individual ranks or individual binary checkboxes.
-    df = assign_network_models_to_duplicated_rows(df)
+    df = assign_network_models_to_duplicated_rows(df, duplicate_column="Item Type", match_values=["Rank", "Binary Checkbox"], new_column_name="Neural Network Model", network_models=network_models)
 
     return df
 
 
-def modify_dataframe(df, network_models):
+def get_response_rows_per_image(df, network_models):
     """
     Modify a DataFrame by adding new columns based on image-related columns.
 
@@ -151,6 +170,8 @@ def modify_dataframe(df, network_models):
 
 
 def process_survey_results_csv(csv_file, survey_items_file, network_models):
+    """ Read and reorganize one CSV file of survey results into a DataFrame to prepare for statistical analysis.
+    """
     # Load CSV Data Using Pandas
     df = pd.read_csv(csv_file)
 
@@ -170,16 +191,23 @@ def process_survey_results_csv(csv_file, survey_items_file, network_models):
     human_survey_items = pd.read_csv(survey_items_file)
     num_items = len(human_survey_items)
     
-    df = add_additional_columns(df, human_survey_items, network_models)
-    df = modify_dataframe(df, network_models)
+    # Add "Item Title Index", "Item Title", "Item Type", and "Neural Network Model" columns to df,
+    # and duplicate rows by the number of items so that these columns are unique and can be used for analysis
+    df = add_survey_item_data_to_dataframe(df, human_survey_items, network_models)
+    
+    # Add "Image File Path", "Image Shuffle Index", and "Response" columns to df
+    # by matching image-related columns with the "Neural Network Model" column
+    # and the "promptrowX-imgY-rating" columns. 
+    # The "Response" column is the rating for part of an item, such as an individual image's ranks.
+    df = get_response_rows_per_image(df, network_models)
 
-    statistical_analysis(df)
+    return df
 
 
 def test():
     """ Small tests of the functions in this file.
     """
-    # Example usage of modify_dataframe():
+    # Example usage of get_response_rows_per_image():
     # Corrected example usage with data format:
     data = {
         'Input.img1': ['abc/hello1.png', 'def/helo2.png', 'ghi/hello3.png'],
@@ -195,7 +223,7 @@ def test():
 
     df = pd.DataFrame(data)
     network_models = ['abc', 'def']
-    df = modify_dataframe(df, network_models)
+    df = get_response_rows_per_image(df, network_models)
     # print(df)
 
 
@@ -224,8 +252,14 @@ def main():
     elif os.path.isdir(args.response_results):
         csv_files = [os.path.join(args.response_results, filename) for filename in os.listdir(args.response_results) if filename.endswith(".csv")]
 
+    dataframes = []
     for csv_file in csv_files:
-        process_survey_results_csv(csv_file, args.survey_items_file, args.network_models)
+        df = process_survey_results_csv(csv_file, args.survey_items_file, args.network_models)
+        dataframes.append(df)
+    
+    # Concatenate the DataFrames
+    combined_df = pd.concat(dataframes, axis=0)
+    statistical_analysis(combined_df)
 
 if __name__ == "__main__":
     main()
