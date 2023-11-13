@@ -10,6 +10,7 @@ import json
 import os
 import re
 import binary_rank
+import crowdkit
 
 
 def extract_and_process_entry(entry, value):
@@ -41,13 +42,53 @@ def extract_and_process_task_answers(task_answers):
     return pd.Series(ratings_data)  # Convert the dictionary to a Series
 
 
-def statistical_analysis(data, network_models):
-    # Define your statistical analysis here
-    print(data)
-    data.to_csv("statistical_output.csv")
+def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_column="Binary Rank Response Left Image is Greater"):
+    """
+    Assess worker responses using the MMSR (Matrix Mean-Subsequence-Reduced) algorithm.
 
-    binary_rank_df = binary_rank.binary_rank_table(data, network_models)
+    Parameters:
+        df (pandas.DataFrame): The DataFrame containing worker responses.
+
+    Returns:
+        pandas.Series: The estimated skill levels of workers.
+    """
+    # print the columns of the DataFrame
+    print(f'binary_rank_df.columns: {binary_rank_df.columns}')
+    # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
+    st2_int, task_to_id, worker_to_id, label_to_id, column_titles = binary_rank.simplify_binary_rank_table(binary_rank_df, worker_column=worker_column, label_column=label_column)
+    # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
+
+    # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
+    # mmsr = crowdkit.aggregation.classification.m_msr.MMSR(
+    #     n_iter=10000,
+    #     tol=1e-10,
+    #     n_workers=len(worker_to_id),
+    #     n_tasks=len(st2_int),
+    #     n_labels=2,  # Assuming binary responses
+    #     workers_mapping=worker_to_id,
+    #     tasks_mapping=task_to_id,
+    #     labels_mapping=label_to_id,
+    # )
+
+    # # Fit the model and predict worker skills
+    # result = mmsr.fit_predict_score(st2_int)
+    # worker_skills = pd.Series(mmsr.skills_)
+
+    return worker_skills
+
+
+def statistical_analysis(df, network_models):
+    # Assess worker responses
+    # Define your statistical analysis here
+    print(df)
+    df.to_csv("statistical_output.csv")
+
+    binary_rank_df = binary_rank.binary_rank_table(df, network_models)
     binary_rank_df.to_csv("statistical_output_binary_rank.csv")
+
+    worker_skills = assess_worker_responses(binary_rank_df)
+
+    # TODO(ahundt) add statistical analysis here, save results to a file, and visualize them
 
 
 def assign_network_models_to_duplicated_rows(
