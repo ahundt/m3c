@@ -93,7 +93,8 @@ def statistical_analysis(df, network_models):
             pandas.DataFrame: The aggregated DataFrame with results.
     """
     # Assess worker responses
-    # Define your statistical analysis here
+    # TODO Define your statistical analysis here
+    # TODO(ahundt) WARNING: df is unfiltered as of Nov 13, 2023! Items with invalid rank combinations and empty values are included. Add appropriate filtering for your analysis method.
     print(df)
     df.to_csv("statistical_analysis_input.csv")
 
