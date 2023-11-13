@@ -1,3 +1,9 @@
+""" Analyze survey results from Amazon Mechanical Turk.
+
+    This script reads and reorganizes one CSV file of survey results into a DataFrame to prepare for statistical analysis.
+
+    Copyright 2023 Andrew Hundt
+"""
 import argparse
 import pandas as pd
 import json
@@ -6,6 +12,8 @@ import re
 
 
 def extract_and_process_entry(entry, value):
+    """ Extract and process a single entry from the Answer.taskAnswers column.
+    """
     if value is None or value == "":
         return None
     if entry.endswith("-rating"):
@@ -15,10 +23,14 @@ def extract_and_process_entry(entry, value):
     elif entry.endswith("-short-answer"):
         return value
     else:
-        raise ValueError(f"Unexpected format in taskAnswers: {entry}")
+        raise ValueError(f"Unexpected format in Answer.taskAnswers: {entry}")
 
 
 def extract_and_process_task_answers(task_answers):
+    """ Extract and process the Answer.taskAnswers column.
+
+        The column contains a JSON string with the responses to the survey questions.
+    """
     task_answers_dict = json.loads(task_answers)
     ratings_data = {}
 
@@ -171,6 +183,21 @@ def get_response_rows_per_image(df, network_models):
 
 def process_survey_results_csv(csv_file, survey_items_file, network_models):
     """ Read and reorganize one CSV file of survey results into a DataFrame to prepare for statistical analysis.
+
+        Load the csv files, add the survey metadata, and put each element of a response on a separate row
+        An element of a response is a single image rank, a single binary checkbox, or a single short answer.
+        
+        The new columns added are:
+             "Item Title Index", "Item Title", "Item Type", "Neural Network Model", 
+             "Image File Path", "Image Shuffle Index", "Country", and "Response".
+
+        Parameters:
+            csv_file (str): Path to the CSV file.
+            survey_items_file (str): Path to the human_survey_items.csv file.
+            network_models (list): List of network models used for matching image columns.
+        
+        Returns:
+            pandas.DataFrame: A new DataFrame with the specified columns added.
     """
     # Load CSV Data Using Pandas
     df = pd.read_csv(csv_file)
@@ -238,6 +265,8 @@ def test():
 
 
 def main():
+    """ Main function.
+    """
     # Command Line Parameter Parsing
     parser = argparse.ArgumentParser(description="Survey Data Analysis")
     parser.add_argument("--response_results", type=str, default="Batch_393773_batch_results.csv", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
@@ -247,11 +276,15 @@ def main():
 
     test()
 
+    # Get the list of CSV files to process
     if os.path.isfile(args.response_results):
         csv_files = [args.response_results]
     elif os.path.isdir(args.response_results):
         csv_files = [os.path.join(args.response_results, filename) for filename in os.listdir(args.response_results) if filename.endswith(".csv")]
 
+    # Load the csv files, add the survey metadata, and put each element of a response on a separate row
+    # An element of a response is a single image rank, a single binary checkbox, or a single short answer.
+    # The new columns added are "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", and "Response".
     dataframes = []
     for csv_file in csv_files:
         df = process_survey_results_csv(csv_file, args.survey_items_file, args.network_models)
