@@ -57,7 +57,7 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
     st2_int, task_to_id, worker_to_id, label_to_id, column_titles = binary_rank.simplify_binary_rank_table(binary_rank_df, worker_column=worker_column, label_column=label_column)
     # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
-
+    worker_skills = None
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
     # mmsr = crowdkit.aggregation.classification.m_msr.MMSR(
     #     n_iter=10000,
