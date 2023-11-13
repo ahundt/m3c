@@ -30,11 +30,11 @@ def binary_rank_table(df, network_models):
         'Left Binary Rank Image', 'Right Binary Rank Image',
         'Left Neural Network Model', 'Right Neural Network Model',
         'Left Image Shuffle Index', 'Right Image Shuffle Index',
-        'Binary Rank Response Left is Greater'] + key_columns)
+        'Binary Rank Response Left Image is Greater'] + key_columns)
 
     # Iterate through unique pairs of images for binary comparison
     for _, group in rank_df.groupby(['Item Title Index', 'HITId']):
-        image_combinations = list(combinations(group['Image File Path'].to_list(), 2))
+        image_combinations = list(combinations(sorted(group['Image File Path'].to_list()), 2))
 
         for left_image, right_image in image_combinations:
             left_group = group[group['Image File Path'] == left_image]
