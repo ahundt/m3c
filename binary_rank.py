@@ -16,65 +16,56 @@ def binary_rank_table(df, network_models):
     # Filter the DataFrame for "Rank" items and relevant network models
     rank_df = df[(df['Item Type'] == "Rank") & df['Neural Network Model'].isin(network_models)]
 
-    # Initialize lists to store binary rank data
-    left_images = []
-    right_images = []
-    left_nn_models = []
-    right_nn_models = []
-    left_image_indices = []
-    right_image_indices = []
-    binary_responses = []
-
     # Define key columns
     key_columns = ["Item Title Index", "Item Title", "Item Type",
                    "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
 
-    # Create lists for left and right key columns, which will need to both be added 
-    # to the new binary_rank_df DataFrame with Left and Right prefixes
+    # Define binary key columns for left and right sides
     binary_key_columns = ["Neural Network Model", "Image Shuffle Index"]
-    left_key_columns = ["Left " + col if col in binary_key_columns else col for col in key_columns]
-    right_key_columns = ["Right " + col if col in binary_key_columns else col for col in key_columns]
+    left_key_columns = [f'Left {col}' if col in binary_key_columns else col for col in key_columns]
+    right_key_columns = [f'Right {col}' if col in binary_key_columns else col for col in key_columns]
 
-    # Iterate through each unique pair of images for binary comparison
+    # Initialize the new DataFrame for binary rank tasks
+    binary_rank_df = pd.DataFrame(columns=[
+        'Left Binary Rank Image', 'Right Binary Rank Image',
+        'Left Neural Network Model', 'Right Neural Network Model',
+        'Left Image Shuffle Index', 'Right Image Shuffle Index',
+        'Binary Rank Response Left is Greater'] + key_columns)
+
+    # Iterate through unique pairs of images for binary comparison
     for _, group in rank_df.groupby(['Item Title Index', 'HITId']):
-        items = group['Image File Path'].tolist()
-        nn_models = group['Neural Network Model'].tolist()
-        image_indices = group['Image Shuffle Index'].tolist()
+        image_combinations = list(combinations(group['Image File Path'].to_list(), 2))
 
-        # Generate combinations of image pairs
-        image_combinations = list(combinations(enumerate(items), 2))
+        for left_image, right_image in image_combinations:
+            left_group = group[group['Image File Path'] == left_image]
+            right_group = group[group['Image File Path'] == right_image]
 
-        for (left_index, left_image), (right_index, right_image) in image_combinations:
-            left_images.append(left_image)
-            right_images.append(right_image)
-            left_nn_models.append(nn_models[left_index])
-            right_nn_models.append(nn_models[right_index])
-            left_image_indices.append(image_indices[left_index])
-            right_image_indices.append(image_indices[right_index])
+            left_response = left_group['Response'].values[0]
+            right_response = right_group['Response'].values[0]
 
-            left_response = group[group['Image File Path'] == left_image]['Response'].values[0]
-            right_response = group[group['Image File Path'] == right_image]['Response'].values[0]
+            left_nn = left_group['Neural Network Model'].values[0]
+            right_nn = right_group['Neural Network Model'].values[0]
 
-            # Handle cases with None values
-            if left_response is None or right_response is None:
-                binary_responses.append(None)
-            else:
-                binary_responses.append(left_response < right_response)
+            # Handle None values
+            binary_response = None if None in (left_response, right_response) else left_response < right_response
 
-    # Create the binary rank DataFrame
-    binary_rank_df = pd.DataFrame({
-        'Left Binary Rank Image': left_images,
-        'Right Binary Rank Image': right_images,
-        'Left Neural Network Model': left_nn_models,
-        'Right Neural Network Model': right_nn_models,
-        'Left Image Shuffle Index': left_image_indices,
-        'Right Image Shuffle Index': right_image_indices,
-        'Binary Rank Response Left is Greater': binary_responses
-    })
+            # Construct the new row for the binary rank DataFrame
+            row_data = {
+                'Left Binary Rank Image': left_image,
+                'Right Binary Rank Image': right_image,
+                'Left Neural Network Model': left_nn,
+                'Right Neural Network Model': right_nn,
+                'Left Image Shuffle Index': left_group['Image Shuffle Index'].values[0],
+                'Right Image Shuffle Index': right_group['Image Shuffle Index'].values[0],
+                'Binary Rank Response Left Image is Greater': binary_response
+            }
 
-    # Add key columns
-    for col in key_columns:
-        binary_rank_df[col] = rank_df.groupby(['Item Title Index', 'HITId']).head(1)[col].reset_index(drop=True)
+            # Add key columns to the row
+            for col in key_columns:
+                row_data[col] = group[col].values[0]
+
+            # Append the new row to the binary rank DataFrame
+            binary_rank_df = pd.concat([binary_rank_df, pd.DataFrame([row_data])], ignore_index=True)
 
     return binary_rank_df
 

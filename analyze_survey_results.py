@@ -9,6 +9,7 @@ import pandas as pd
 import json
 import os
 import re
+import binary_rank
 
 
 def extract_and_process_entry(entry, value):
@@ -40,10 +41,13 @@ def extract_and_process_task_answers(task_answers):
     return pd.Series(ratings_data)  # Convert the dictionary to a Series
 
 
-def statistical_analysis(data):
+def statistical_analysis(data, network_models):
     # Define your statistical analysis here
     print(data)
     data.to_csv("statistical_output.csv")
+
+    binary_rank_df = binary_rank.binary_rank_table(data, network_models)
+    binary_rank_df.to_csv("statistical_output_binary_rank.csv")
 
 
 def assign_network_models_to_duplicated_rows(
@@ -297,7 +301,7 @@ def main():
     
     # Concatenate the DataFrames
     combined_df = pd.concat(dataframes, axis=0)
-    statistical_analysis(combined_df)
+    statistical_analysis(combined_df, args.network_models)
 
 if __name__ == "__main__":
     main()
