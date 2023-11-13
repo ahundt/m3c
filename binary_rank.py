@@ -54,6 +54,7 @@ def binary_rank_table(df, network_models):
             left_nn = left_group['Neural Network Model'].values[0]
             right_nn = right_group['Neural Network Model'].values[0]
 
+            # TODO(ahundt) check if the less than comparison below is correct, and if it should be flipped. Handle None values in analysis.
             # Handle None values
             binary_response = None if None in (left_response, right_response) else left_response < right_response
 
