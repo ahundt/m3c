@@ -14,6 +14,7 @@ import binary_rank
 import crowdkit
 import seaborn as sns
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 
 def extract_and_process_entry(entry, value):
@@ -486,7 +487,7 @@ def main():
     # The key columns of df, including new columns added are: 
     # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
     dataframes = []
-    for csv_file in csv_files:
+    for csv_file in tqdm(csv_files):
         df = process_survey_results_csv(csv_file, args.survey_items_file, args.network_models)
         dataframes.append(df)
     
