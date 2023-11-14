@@ -6,11 +6,14 @@
 """
 import argparse
 import pandas as pd
+import numpy as np
 import json
 import os
 import re
 import binary_rank
 import crowdkit
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 def extract_and_process_entry(entry, value):
@@ -59,23 +62,108 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
     worker_skills = None
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
-    # mmsr = crowdkit.aggregation.classification.m_msr.MMSR(
-    #     n_iter=10000,
-    #     tol=1e-10,
-    #     n_workers=len(worker_to_id),
-    #     n_tasks=len(st2_int),
-    #     n_labels=2,  # Assuming binary responses
-    #     workers_mapping=worker_to_id,
-    #     tasks_mapping=task_to_id,
-    #     labels_mapping=label_to_id,
-    # )
+    from crowdkit.aggregation import MMSR
+    mmsr = MMSR(
+        n_iter=10000,
+        tol=1e-10,
+        n_workers=len(worker_to_id),
+        n_tasks=len(st2_int),
+        n_labels=2,  # Assuming binary responses
+        workers_mapping=worker_to_id,
+        tasks_mapping=task_to_id,
+        labels_mapping=label_to_id,
+    )
 
-    # # Fit the model and predict worker skills
-    # result = mmsr.fit_predict_score(st2_int)
-    # worker_skills = pd.Series(mmsr.skills_)
+    # Fit the model and predict worker skills
+    result = mmsr.fit_predict_score(st2_int)
+    worker_skills = pd.Series(mmsr.skills_)
+    # print(result)
+    print(worker_skills)
 
     return worker_skills
 
+def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseline','genericSD']):
+    """ 
+    Create grouped bar charts comparing the rankings amongst methods head to head 
+
+    Parameters:
+        df (pandas.DataFrame): Binary Comparison data
+    """
+    # Get the mean binary rank comparison (proportion of times left was ranked lower than right)
+    df_grouped = df.groupby(["Country", "Item Title", "Left Neural Network Model", "Right Neural Network Model"])\
+        ['Binary Rank Response Left Image is Greater'].mean().reset_index()
+    df_grouped['Binary Rank Response Left Image is Greater'] *= 100
+    
+    # Make a copy with reciprocal left & right
+    df_grouped_rec = df_grouped.copy()
+    df_grouped_rec["Left Neural Network Model"] = df_grouped["Right Neural Network Model"]
+    df_grouped_rec["Right Neural Network Model"] = df_grouped["Left Neural Network Model"]
+    df_grouped_rec['Binary Rank Response Left Image is Greater'] = 100 - df_grouped_rec['Binary Rank Response Left Image is Greater']
+
+    # Double the dataframe so that left&right methods also contain right&left
+    df_grouped = pd.concat([df_grouped, df_grouped_rec], ignore_index=True)
+
+    # Remove rows where the two Neural Network Models compared are the same
+    df_grouped = df_grouped[df_grouped["Left Neural Network Model"] != df_grouped["Right Neural Network Model"]]
+
+
+    # Only include the key comparisons, such as contrastive with all and baseline with only genericSD
+    for i in range(len(models_ordered)):
+        for j in range(i-1, -1, -1):
+            df_grouped = df_grouped[~((df_grouped["Left Neural Network Model"] == models_ordered[i]) \
+                                    & (df_grouped["Right Neural Network Model"] == models_ordered[j]))]
+
+    countries = df_grouped['Country'].unique()
+    item_titles = df_grouped['Item Title'].unique()
+
+    def plot_barchart(df_grouped_subset, ax):
+        sns.barplot(
+                ax=ax,
+                data=df_grouped_subset, 
+                x="Left Neural Network Model", 
+                y='Binary Rank Response Left Image is Greater', 
+                hue="Right Neural Network Model",
+                order=models_ordered[:-1],
+                hue_order=models_ordered[1:])
+        ax.set_ylim(0, 100)
+        ax.set_xlabel('Approach')
+        ax.set_ylabel('% times approach ranked lower (better)')
+        # Plot dashed line at 50%
+        ax.axhline(y=50, color='r', linestyle='--')
+        ax.legend(title=None)
+
+    fig, axes = plt.subplots(len(countries), len(item_titles), figsize=(len(item_titles)*5, len(countries)*5))
+    for i in range(len(countries)):
+        for j in range(len(item_titles)):
+            country = countries[i]
+            item_title = item_titles[j]
+
+            ax = axes[i,j] if len(countries) > 1 else axes[j]
+
+            # Only look at the country and quesstions
+            df_grouped_subset = df_grouped[(df_grouped['Country'] == country) & (df_grouped['Item Title'] == item_title)]
+            plot_barchart(df_grouped_subset, ax)
+            ax.set_title('{}, {}'.format(country, item_title))
+            
+    plt.savefig('binary_comparison_per_country.png')
+    plt.close(fig)
+    # plt.show()
+
+    fig, axes = plt.subplots(1, len(item_titles), figsize=(len(item_titles)*5, 5))
+    for j in range(len(item_titles)):
+        country = countries[i]
+        item_title = item_titles[j]
+
+        ax = axes[j]
+
+        # Only look at the question
+        df_grouped_subset = df_grouped[df_grouped['Item Title'] == item_title]
+        plot_barchart(df_grouped_subset, ax)
+        ax.set_title('{}'.format(item_title))
+            
+    plt.savefig('binary_comparison.png')
+    plt.close(fig)
+    # plt.show()
 
 def statistical_analysis(df, network_models):
     """ Perform statistical analysis on the DataFrame.
@@ -98,12 +186,13 @@ def statistical_analysis(df, network_models):
     print(df)
     df.to_csv("statistical_analysis_input.csv")
 
+
     # Group the DataFrame by "Neural Network Model," "Country," and "Item Title"
     grouped = df.groupby(["Neural Network Model", "Country", "Item Title"])
 
     # Define the aggregation functions you want to apply
     aggregation_functions = {
-        "Response": ["count", "median", "min", "max", "sem"],
+        "Response": ["count", "median", "min", "max", "sem", "mean"],
         "WorkerId": ["nunique"],
         "Country": ["nunique"]
     }
@@ -116,6 +205,8 @@ def statistical_analysis(df, network_models):
 
     binary_rank_df = binary_rank.binary_rank_table(df, network_models)
     binary_rank_df.to_csv("statistical_output_binary_rank.csv")
+
+    plot_binary_comparisons(binary_rank_df.copy())
 
     worker_skills = assess_worker_responses(binary_rank_df)
 
