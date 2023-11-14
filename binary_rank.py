@@ -11,6 +11,51 @@ from tqdm import tqdm
 
 
 def binary_rank_table(df, network_models):
+   # Filter the DataFrame for "Rank" items and relevant network models
+   rank_df = df[(df['Item Type'] == "Rank") & df['Neural Network Model'].isin(network_models)]
+
+   # Define key columns
+   key_columns = ["Item Title Index", "Item Title", "Item Type",
+                  "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
+
+   # Get the unique pairs of images for binary comparison
+   image_combinations = rank_df.groupby(['Item Title Index', 'HITId'])['Image File Path'].apply(lambda x: list(combinations(sorted(x), 2))).explode().reset_index()
+
+   # Split the image pairs into left and right columns
+   image_combinations[['Left Binary Rank Image', 'Right Binary Rank Image']] = pd.DataFrame(image_combinations['Image File Path'].tolist(), index=image_combinations.index)
+
+   # Drop the original image pair column
+   image_combinations.drop('Image File Path', axis=1, inplace=True)
+
+   # Merge the left and right image columns with the rank_df to get the corresponding responses and neural network models
+   left_df = rank_df.merge(image_combinations, left_on=['Item Title Index', 'HITId', 'Image File Path'], right_on=['Item Title Index', 'HITId', 'Left Binary Rank Image'], how='inner')
+   right_df = rank_df.merge(image_combinations, left_on=['Item Title Index', 'HITId', 'Image File Path'], right_on=['Item Title Index', 'HITId', 'Right Binary Rank Image'], how='inner')
+
+   # Rename the columns to indicate left and right
+   left_df.rename(columns={'Response': 'Left Response', 'Neural Network Model': 'Left Neural Network Model', 'Image Shuffle Index': 'Left Image Shuffle Index'}, inplace=True)
+   right_df.rename(columns={'Response': 'Right Response', 'Neural Network Model': 'Right Neural Network Model', 'Image Shuffle Index': 'Right Image Shuffle Index'}, inplace=True)
+
+   # Join the left and right DataFrames on the key columns
+   # Change the column names to match the image_combinations DataFrame
+   binary_rank_df = left_df.merge(right_df, left_on=['Item Title Index', 'HITId', 'Left Binary Rank Image'], right_on=['Item Title Index', 'HITId', 'Right Binary Rank Image'], how='inner')
+
+   # Compute the binary response by comparing the left and right responses
+   binary_rank_df['Binary Rank Response Left Image is Greater'] = binary_rank_df['Left Response'] < binary_rank_df['Right Response']
+
+   # Drop the unnecessary columns
+#    binary_rank_df.drop(['Image File Path_x', 'Image File Path_y', 'Left Response', 'Right Response'], axis=1, inplace=True)
+
+#    # Reorder the columns
+#    binary_rank_df = binary_rank_df[['Left Binary Rank Image', 'Right Binary Rank Image',
+#        'Left Neural Network Model', 'Right Neural Network Model',
+#        'Left Image Shuffle Index', 'Right Image Shuffle Index',
+#        'Binary Rank Response Left Image is Greater'] + key_columns]
+
+   return binary_rank_df
+
+
+
+def binary_rank_table_old(df, network_models):
     """
     Break down rank items into binary image comparison tasks and create a new DataFrame.
 
@@ -202,10 +247,16 @@ if __name__ == "__main__":
 
     network_models = ["baseline", "contrastive"]
 
-    binary_rank_df = binary_rank_table(df, network_models)
+    # Call the old and new functions
+    new_df = binary_rank_table(df, network_models)
+    old_df = binary_rank_table_old(df, network_models)
+
+    # Compare the outputs
+    print(old_df.equals(new_df))
 
     # Save the binary rank results to a CSV file
-    binary_rank_df.to_csv('binary_rank_results.csv', index=False)
+    old_df.to_csv('binary_rank_results_old.csv', index=False)
+    new_df.to_csv('binary_rank_results_new.csv', index=False)
 
     #########################################################
     # Example usage with your provided data
