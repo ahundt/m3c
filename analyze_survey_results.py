@@ -187,6 +187,28 @@ def statistical_analysis(df, network_models):
     df.to_csv("statistical_analysis_input.csv")
 
 
+
+    ####################
+    # All data stats
+    ####################
+    # Group the DataFrame by "Neural Network Model," "Country," and "Item Title"
+    grouped = df.groupby(["Neural Network Model", "Item Title"])
+
+    # Define the aggregation functions you want to apply
+    aggregation_functions = {
+        "Response": ["count", "median", "min", "max", "sem", "mean"],
+        "WorkerId": ["nunique"]
+    }
+
+    # Perform aggregation and reset the index
+    aggregated_df = grouped.agg(aggregation_functions).reset_index()
+
+    # Save the aggregated DataFrame to a CSV file
+    aggregated_df.to_csv("aggregated_statistical_output_by_country.csv", index=False)
+
+    ####################
+    # Per country stats
+    ####################
     # Group the DataFrame by "Neural Network Model," "Country," and "Item Title"
     grouped = df.groupby(["Neural Network Model", "Country", "Item Title"])
 
@@ -201,8 +223,12 @@ def statistical_analysis(df, network_models):
     aggregated_df = grouped.agg(aggregation_functions).reset_index()
 
     # Save the aggregated DataFrame to a CSV file
-    aggregated_df.to_csv("aggregated_statistical_output.csv", index=False)
+    aggregated_df.to_csv("aggregated_statistical_output_by_country.csv", index=False)
 
+
+    ####################
+    # Binary Rank Stats
+    ####################
     binary_rank_df = binary_rank.binary_rank_table(df, network_models)
     binary_rank_df.to_csv("statistical_output_binary_rank.csv")
 
