@@ -7,6 +7,7 @@ Copyright 2023 Andrew Hundt
 import pandas as pd
 from itertools import combinations
 import csv
+from tqdm import tqdm
 
 
 def binary_rank_table(df, network_models):
@@ -41,7 +42,7 @@ def binary_rank_table(df, network_models):
         'Binary Rank Response Left Image is Greater'] + key_columns)
 
     # Iterate through unique pairs of images for binary comparison
-    for _, group in rank_df.groupby(['Item Title Index', 'HITId']):
+    for _, group in tqdm(rank_df.groupby(['Item Title Index', 'HITId']), desc="Creating binary rank table"):
         image_combinations = list(combinations(sorted(group['Image File Path'].to_list()), 2))
 
         for left_image, right_image in image_combinations:
