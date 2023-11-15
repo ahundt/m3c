@@ -416,6 +416,8 @@ def process_survey_results_csv(csv_file, survey_items_file, network_models):
     """
     # Load CSV Data Using Pandas
     df = pd.read_csv(csv_file)
+    # add the csv file name as a column
+    df['CSV File'] = csv_file
 
     # Apply extract_and_process_task_answers to extract and process ratings data
     ratings_df = df['Answer.taskAnswers'].apply(extract_and_process_task_answers)
