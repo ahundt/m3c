@@ -100,7 +100,8 @@ def binary_rank_table(df, network_models):
     pool = mp.Pool(mp.cpu_count())
 
     # Apply the process_group function to each group and get the results
-    results = pool.map(process_group, [group for _, group in rank_df.groupby(['Item Title Index', 'HITId'])])
+    # Use imap_unordered and tqdm to show the progress
+    results = list(tqdm(pool.imap_unordered(process_group, [group for _, group in rank_df.groupby(['Item Title Index', 'HITId'])]), desc="Creating binary rank table", total=len(rank_df.groupby(['Item Title Index', 'HITId']))))
 
     # Close the pool and join the processes
     pool.close()
