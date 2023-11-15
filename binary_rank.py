@@ -362,14 +362,12 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
     df[response] = df[response].map({True: 1, False: 0, "True": 1, "False": 0, 1:1, 0:0, None:None})
 
     # Count wins for the left and right models, grouped by the specified columns
-    left_wins = df[df[response] == 1].groupby(group_by + [left_category_column]).size()
-    right_wins = df[df[response] == 0].groupby(group_by + [right_category_column]).size()
+    left_wins = df[df[response] == 1].groupby(group_by + [left_category_column]).size().reset_index().rename(columns={left_category_column: category, 0: 'wins'})
+    right_wins = df[df[response] == 0].groupby(group_by + [right_category_column]).size().reset_index().rename(columns={right_category_column: category, 0: 'wins'})
 
-    # Combine the wins for the left and right models
-    wins = left_wins.add(right_wins, fill_value=0).reset_index()
-
-    # Rename the last column to 'wins'
-    wins.rename(columns={wins.columns[-1]: 'wins'}, inplace=True)
+    # Concatenate and sum the wins for the left and right models
+    wins = pd.concat([left_wins, right_wins])
+    wins = wins.groupby(group_by + [category]).sum().reset_index()
 
     # Check if the group_by parameter is empty or not
     if group_by:
