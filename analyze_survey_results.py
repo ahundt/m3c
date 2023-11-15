@@ -84,45 +84,53 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     Returns:
         pandas.Series: The estimated skill levels of workers.
     """
+    # print running crowdkit
+    print('Running Crowdkit MMSR')
     # print the columns of the DataFrame
     print(f'binary_rank_df.columns: {binary_rank_df.columns}')
     # print the unique workerIds in the binary_rank_df
     print(f'Unique workers: binary_rank_df[worker_column].unique(): {len(binary_rank_df[worker_column].unique())}')
     # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
-    task_worker_label_df, task_to_id, worker_to_id, label_to_id, column_titles = binary_rank.simplify_binary_rank_table(
+    grouping_columns = ['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country']
+    task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_format(
         binary_rank_df, worker_column=worker_column, label_column=label_column,
-        task_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country']
+        task_columns=grouping_columns
     )
-    n_workers = len(worker_to_id)
-    n_tasks = len(task_to_id)
-    n_labels = len(label_to_id)
-    print(f'n_workers: {n_workers}, n_tasks: {n_tasks}, n_labels: {n_labels}')
+    # print table restore metadata
+
     # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
     from crowdkit.aggregation import MMSR
     mmsr = MMSR(
         n_iter=10000,
         tol=1e-10,
-        n_workers=n_workers,
-        n_tasks=n_tasks,
-        n_labels=n_labels,  # Assuming binary responses
-        workers_mapping=worker_to_id,
-        tasks_mapping=task_to_id,
-        labels_mapping=label_to_id,
+        n_workers=table_restore_metadata['n_workers'],
+        n_tasks=table_restore_metadata['n_tasks'],
+        n_labels=table_restore_metadata['n_labels'],  # Assuming binary responses
+        workers_mapping=table_restore_metadata['workers_mapping'],
+        tasks_mapping=table_restore_metadata['tasks_mapping'],
+        labels_mapping=table_restore_metadata['labels_mapping']
     )
     print(f'st2_int.shape: {task_worker_label_df.shape} \ntask_worker_label_df:\n{task_worker_label_df}')
     task_worker_label_df.to_csv("task_worker_label_df.csv")
 
+    print(f'Running CrowdKit Optimization MMSR.fit_predict()')
     # Fit the model and predict worker skills
-    result = mmsr.fit_predict(task_worker_label_df)
+    results_df = mmsr.fit_predict(task_worker_label_df)
+    print(f'Finished CrowdKit Optimization MMSR.fit_predict(), Results:')
+    print(results_df)
     # save results to a file
-    result.to_csv("mmsr_result.csv")
+    results_df.to_csv("mmsr_results.csv")
     # result = mmsr.fit_predict_score(simplified_table)
     worker_skills = pd.Series(mmsr.skills_)
     # save worker skills to a file
     worker_skills.to_csv("mmsr_worker_skills.csv")
-    print(result)
     print(worker_skills)
+    # convert the results_df to a dataframe and make the index the task columns
+    
+    results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
+    rank_results = binary_rank.reconstruct_ranking(results_df, grouping_columns)
+    rank_results.to_csv("mmsr_rank_results.csv")
 
     return worker_skills
 

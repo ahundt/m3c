@@ -4,6 +4,7 @@ The binary comparison tasks are used for the crowd-kit library for aggregating r
 
 Copyright 2023 Andrew Hundt
 """
+import numpy as np
 import pandas as pd
 from itertools import combinations
 import csv
@@ -191,13 +192,15 @@ def binary_rank_table_old(df, network_models):
     return binary_rank_df
 
 
-def simplify_binary_rank_table(
+def convert_table_to_crowdkit_format(
         binary_rank_df, 
         task_columns=['Left Binary Rank Image', 'Right Binary Rank Image', 'Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country', 'Input.prompt', 'Input.seed'],
         worker_column='WorkerId',
         label_column='Binary Rank Response Left Image is Greater',
         separator='|'):
     """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string.
+
+    See restore_from_crowdkit_format() for restoring the table.
 
     The purpose of this function is to convert the binary rank table into a format that can be used by the
     crowd-kit library. The crowd-kit library requires the table to be in a specific format, which is described
@@ -241,7 +244,6 @@ def simplify_binary_rank_table(
     # # save out worker and label simplified table
     # simplified_table.to_csv('simplified_binary_rank_table_worker_and_label.csv', index=False, quoting=csv.QUOTE_ALL)
 
-    task_title = '|'.join(task_columns)
     column_titles = {
         'task': task_columns,
         'worker': worker_column,
@@ -254,16 +256,7 @@ def simplify_binary_rank_table(
     st2['worker'] = binary_rank_df[worker_column]
     st2['label'] = binary_rank_df[label_column]
 
-    # # double for loop to concatenate the titles and values of the combined columns into a single string per row
-    # st2 = pd.DataFrame()
-    # st2['task'] = simplified_table[task_columns[0]]
-    # for col in task_columns[1:]:
-    #     st2['task'] = st2['task'] + separator + simplified_table[col]
-    # st2['worker'] = simplified_table[worker_column]
-    # st2['label'] = simplified_table[label_column]
-
-    # st2.to_csv('simplified_binary_rank_table.csv', index=False, quoting=csv.QUOTE_ALL)
-
+    # get the reformatting variables
     task_columns = '|'.join(task_columns)
     # make a map from the task column to integer ids
     task_to_id = {task: i for i, task in enumerate(st2['task'].unique())}
@@ -272,38 +265,108 @@ def simplify_binary_rank_table(
     # make a map from the label column to integer ids
     label_to_id = {label: i for i, label in enumerate(st2['label'].unique())}
 
-    # # create st2_int with integer ids for all columns using the maps above
-    # st2_int = pd.DataFrame()
-    # st2_int['task'] = st2['task'].map(task_to_id)
-    # st2_int['worker'] = st2['worker'].map(worker_to_id)
-    # st2_int['label'] = st2['label'].map(label_to_id)
-
-    # store the column names as a list
-    column_titles = [task_columns, worker_column, label_column]
+    table_restore_metadata = {
+        'column_titles': column_titles,
+        'tasks_mapping': task_to_id,
+        'workers_mapping': worker_to_id,
+        'labels_mapping': label_to_id,
+        'task_columns': task_columns,
+        'separator': separator,
+        'n_tasks': len(task_to_id),
+        'n_workers': len(worker_to_id),
+        'n_labels': len(label_to_id)
+    }
 
     # return the simplified int table, the maps, and the column names
-    return st2, task_to_id, worker_to_id, label_to_id, column_titles
+    return st2, table_restore_metadata
 
 
-def restore_binary_rank_table(st2_int, task_to_id, worker_to_id, label_to_id, column_titles, separator='|'):
-    """ Restore the binary rank table from the simplified table.
+def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
+    """ Restore the binary rank table from the simplified table or a results table.
     """
+    # If crowdkit_df is a Series, convert it to a DataFrame
+    if isinstance(crowdkit_df, pd.Series):
+        crowdkit_df = crowdkit_df.to_frame()
+        crowdkit_df['task'] = crowdkit_df.index
+
+    # Check if the 'task' column exists
+    print(f"step 1 of restoring from crowdkit format crowdkit_df.columns: {crowdkit_df.columns}")
+
     # restore the task column from integer ids to strings
     st2 = pd.DataFrame()
-    st2['task'] = st2_int['task'].map({v: k for k, v in task_to_id.items()})
-    st2['worker'] = st2_int['worker'].map({v: k for k, v in worker_to_id.items()})
-    st2['label'] = st2_int['label'].map({v: k for k, v in label_to_id.items()})
+    # Check if the columns exist and the first value is an integer, then perform the mapping
+    # Typical columns include: ['task', 'worker', 'label'] or ['agg_label']
+    for column in crowdkit_df.columns:
+        if column in crowdkit_df:
+            first_value = pd.to_numeric(crowdkit_df[column].iloc[0], errors='coerce')
+            if not np.isnan(first_value) and np.issubdtype(first_value, np.integer) and column in table_restore_metadata['column_titles']:
+                st2[column] = crowdkit_df[column].map({v: k for k, v in table_restore_metadata[column].items()})
+            else:
+                st2[column] = crowdkit_df[column]
 
+    print(f"step 2 of restoring from crowdkit format crowdkit_df.columns: {crowdkit_df.columns}, st2.columns: {st2.columns}")
     # split the task column into the original columns
-    combined_columns = column_titles[0].split(separator)
-    for i, col in enumerate(combined_columns):
-        st2[col] = st2['task'].apply(lambda x: x.split('|')[i])
+    for i, col in enumerate(table_restore_metadata['column_titles']['task']):
+        st2[col] = st2['task'].apply(lambda x: x.split(table_restore_metadata['separator'])[i])
 
     # drop the task column
     st2 = st2.drop(columns=['task'])
 
     # return the restored table
     return st2
+
+
+def reconstruct_ranking(binary_rank_df, group_by, left_category_column='Left Neural Network Model', right_category_column='Right Neural Network Model', aggregate_response_column='agg_label'):
+    """
+    Reconstruct the ranking of the categories according to the specified grouping.
+
+    Parameters:
+        binary_rank_df (pandas.DataFrame): The DataFrame containing the binary rank tasks and responses.
+        group_by (list): The list of columns to group by. The function will calculate the ranking within each group separately.
+        left_category_column (str): The name of the column containing the left category. Default is 'Left Neural Network Model'.
+        right_category_column (str): The name of the column containing the right category. Default is 'Right Neural Network Model'.
+
+    Returns:
+        pandas.DataFrame: The DataFrame containing the reconstructed ranking of the categories for each group.
+    """
+
+    # Initialize the new DataFrame for the reconstructed ranking
+    rank_df = pd.DataFrame(columns=group_by + ['Category', 'Rank'])
+
+    # Iterate through each group of binary rank tasks
+    for group_key, group in binary_rank_df.groupby(group_by):
+        # Get the list of categories
+        categories = group[left_category_column].unique()
+
+        # Create a dictionary to store the number of wins for each category
+        wins = {category: 0 for category in categories}
+
+        # Iterate through each binary rank task in the group
+        for _, row in group.iterrows():
+            # Get the left and right categories and the binary response
+            left_category = row[left_category_column]
+            right_category = row[right_category_column]
+            binary_response = row[aggregate_response_column]
+
+            # Update the number of wins for the winning category
+            if binary_response is True:
+                wins[left_category] += 1
+            elif binary_response is False:
+                wins[right_category] += 1
+
+        # Sort the categories by the number of wins in descending order
+        sorted_categories = sorted(categories, key=lambda x: wins[x], reverse=True)
+
+        # Assign the rank to each category based on the sorted order
+        ranks = {category: i + 1 for i, category in enumerate(sorted_categories)}
+
+        # Construct the new rows for the rank DataFrame
+        new_rows = [{**dict(zip(group_by, group_key)), 'Category': category, 'Rank': ranks[category]} for category in categories]
+
+        # Append the new rows to the rank DataFrame
+        rank_df = rank_df.append(new_rows, ignore_index=True)
+
+    return rank_df
 
 
 if __name__ == "__main__":
@@ -370,8 +433,8 @@ if __name__ == "__main__":
 
 
     # Save the binary rank results to a CSV file
-    old_df.to_csv('binary_rank_results_old.csv', index=False)
-    new_df.to_csv('binary_rank_results_new.csv', index=False)
+    old_df.to_csv('binary_rank_results_example_old.csv', index=False)
+    new_df.to_csv('binary_rank_results_example_new.csv', index=False)
 
     #########################################################
     # Example usage with your provided data
@@ -395,12 +458,12 @@ if __name__ == "__main__":
     binary_rank_df = pd.DataFrame(data)
 
     # Simplify the binary rank table
-    st2_int, task_to_id, worker_to_id, label_to_id, column_titles = simplify_binary_rank_table(binary_rank_df)
+    crowdkit_table, table_restore_metadata = convert_table_to_crowdkit_format(binary_rank_df)
 
     # Save the simplified table to a CSV file with quotes around entries
-    st2_int.to_csv('simplified_binary_rank_table_int.csv', index=False, quoting=csv.QUOTE_ALL)
+    crowdkit_table.to_csv('simplified_binary_rank_example_table_int.csv', index=False, quoting=csv.QUOTE_ALL)
     
     # Restore the simplified table
-    st2 = restore_binary_rank_table(st2_int, task_to_id, worker_to_id, label_to_id, column_titles)
+    st2 = restore_from_crowdkit_format(crowdkit_table, table_restore_metadata)
     # Save the restored table to a CSV file with quotes around entries
-    st2.to_csv('simplified_restored_binary_rank_table.csv', index=False, quoting=csv.QUOTE_ALL)
+    st2.to_csv('simplified_restored_binary_rank_example_table.csv', index=False, quoting=csv.QUOTE_ALL)
