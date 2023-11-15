@@ -345,14 +345,6 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
     left_category_column = category_columns[0]
     right_category_column = category_columns[1]
 
-    # Find the positions of the left and right category columns
-    left_category_position = df.columns.get_loc(left_category_column)
-    right_category_position = df.columns.get_loc(right_category_column)
-
-    # Access the left and right category columns by their positions
-    left_category = df.iloc[:, left_category_position]
-    right_category = df.iloc[:, right_category_position]
-
     # Check if the response column contains any values other than "True", "False", 1, 0, or None
     valid_responses = ["True", "False", 1, 0, None]
     if not df[response].isin(valid_responses).all():
@@ -365,9 +357,8 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
     left_wins = df[df[response] == 1].groupby(group_by + [left_category_column]).size().reset_index().rename(columns={left_category_column: category, 0: 'wins'})
     right_wins = df[df[response] == 0].groupby(group_by + [right_category_column]).size().reset_index().rename(columns={right_category_column: category, 0: 'wins'})
 
-    # Concatenate and sum the wins for the left and right models
-    wins = pd.concat([left_wins, right_wins])
-    wins = wins.groupby(group_by + [category]).sum().reset_index()
+    # Combine wins for all models, ensuring all models are accounted for
+    wins = pd.concat([left_wins, right_wins], ignore_index=True).groupby(group_by + [category]).sum().reset_index()
 
     # Check if the group_by parameter is empty or not
     if group_by:
@@ -387,7 +378,35 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
 
 
 if __name__ == "__main__":
-    # Example usage with your provided data
+    # Create the DataFrame
+    data = {
+        'task': ['baseline|contrastive|Rank', 'baseline|genericSD|Rank', 'baseline|positive|Rank', 'contrastive|genericSD|Rank', 'contrastive|positive|Rank', 'genericSD|positive|Rank'],
+        'agg_label': [False, True, False, True, True, False],
+        'Left Neural Network Model': ['baseline', 'baseline', 'baseline', 'contrastive', 'contrastive', 'genericSD'],
+        'Right Neural Network Model': ['contrastive', 'genericSD', 'positive', 'genericSD', 'positive', 'positive'],
+        'Item Type': ['Rank', 'Rank', 'Rank', 'Rank', 'Rank', 'Rank']
+    }
+    df = pd.DataFrame(data)
+
+    # Current Result:
+    # ,index,wins,Rank
+    # 1,contrastive,3.0,1.0
+    # 2,positive,2.0,2.0
+    # 0,baseline,1.0,3.0
+
+    # Expected Result is similar to the Current Result but should have all 4 models.
+    # ,Neural Network Model,wins,Rank
+    # 1,contrastive,3.0,1.0
+    # 2,positive,2.0,2.0
+    # 0,baseline,1.0,3.0
+    # 3,genericSD,1.0,3.0
+
+    # Call the reconstruct_ranking function
+    rank_results = reconstruct_ranking(df, group_by=['Item Type'], category='Neural Network Model', response='agg_label', rank_method='max')
+
+    # Print the results
+    print(f'rank_results: \n{rank_results}')
+    # Example usage
     data = {
         'Item Title Index': [1, 1, 2, 2, 3, 3],
         'Item Title': ['Title1', 'Title1', 'Title2', 'Title2', 'Title3', 'Title3'],
