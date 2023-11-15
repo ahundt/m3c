@@ -142,6 +142,8 @@ def assess_worker_responses(
     results_df.to_csv(f"mmsr_results_restored-{binary_rank_reconstruction_grouping_columns_str}.csv")
     # print the columns of results_df
     print(f'results_df.columns: {results_df.columns}')
+    # print results_df
+    print(f'results_df:\n{results_df}')
     rank_results = binary_rank.reconstruct_ranking(results_df, binary_rank_reconstruction_grouping_columns)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), reconstruct_ranking() rank_results: {rank_results}')
     rank_results.to_csv(f"mmsr_rank_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
