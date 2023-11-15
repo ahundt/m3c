@@ -9,59 +9,110 @@ from itertools import combinations
 import csv
 from tqdm import tqdm
 
+# Define a function to process a single group of images
+def process_group(group):
 
-def binary_rank_table(df, network_models):
-    print("binary_rank_table step 1")
-    # Filter the DataFrame for "Rank" items and relevant network models
-    rank_df = df[(df['Item Type'] == "Rank") & df['Neural Network Model'].isin(network_models)]
- 
     # Define key columns
     key_columns = ["Item Title Index", "Item Title", "Item Type",
                    "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
- 
-    # Get the unique pairs of images for binary comparison
-    image_combinations = rank_df.groupby(['Item Title Index', 'HITId'])['Image File Path'].apply(lambda x: list(combinations(sorted(x), 2))).explode().reset_index()
-    print("binary_rank_table step 2")
-    # Split the image pairs into left and right columns
-    image_combinations[['Left Binary Rank Image', 'Right Binary Rank Image']] = pd.DataFrame(image_combinations['Image File Path'].tolist(), index=image_combinations.index)
-    print("binary_rank_table step 3")
-    # Drop the image pair column
-    image_combinations.drop('Image File Path', axis=1, inplace=True)
-    print("binary_rank_table step 4")
+    # Get the list of images and sort them
+    images = sorted(group['Image File Path'].to_list())
 
-    # Merge the image combinations with the rank_df on the item title index and HITId
-    binary_rank_df = pd.merge(image_combinations, rank_df, on=['Item Title Index', 'HITId'], how='left', suffixes=('_left', '_right'))
-    print("binary_rank_table step 5")
-    # Merge the binary rank df with the rank_df again on the right image file path
-    binary_rank_df = pd.merge(binary_rank_df, rank_df, left_on=['Right Binary Rank Image', 'HITId'], right_on=['Image File Path', 'HITId'], how='left', suffixes=('_left', '_right'))
-    print("binary_rank_table step 6")
-    # Compute the binary response
-    binary_rank_df['Binary Rank Response Left Image is Greater'] = binary_rank_df.apply(lambda x: None if None in (x['Response_left'], x['Response_right']) else x['Response_left'] < x['Response_right'], axis=1)
-    print("binary_rank_table step 7")
+    # Get the list of responses and network models
+    responses = group['Response'].to_list()
+    network_models = group['Neural Network Model'].to_list()
 
-    # Drop the redundant columns
-    for col in binary_rank_df.columns:
-        if col.endswith('_left') and col[:-5] + '_right' in binary_rank_df.columns and binary_rank_df[col].equals(binary_rank_df[col[:-5] + '_right']):
-            binary_rank_df.drop(col[:-5] + '_right', axis=1, inplace=True)
-            binary_rank_df.rename(columns={col: col[:-5]}, inplace=True)
-        elif col.endswith('_right'):
-            # put "Right " in front of the column name
-            binary_rank_df.rename(columns={col: "Right " + col[:-6]}, inplace=True)
-        elif col.endswith('_left'):
-            # put "Left " in front of the column name
-            binary_rank_df.rename(columns={col: "Left " + col[:-5]}, inplace=True)
-    print("binary_rank_table step 8")
-    # # Reorder the columns
-    # binary_rank_df = binary_rank_df[['Left Binary Rank Image', 'Right Binary Rank Image',
-    #                                  'Neural Network Model_left', 'Neural Network Model_right',
-    #                                  'Image Shuffle Index_left', 'Image Shuffle Index_right',
-    #                                  'Binary Rank Response Left Image is Greater'] + key_columns]
-    binary_rank_df.to_csv('binary_rank_df.csv')
-    
+    # Get the list of image shuffle indices
+    shuffle_indices = group['Image Shuffle Index'].to_list()
+
+    # Create a list to store the new rows
+    new_rows = []
+
+    # Iterate through unique pairs of images for binary comparison
+    for i, j in combinations(range(len(images)), 2):
+        left_image = images[i]
+        right_image = images[j]
+
+        left_response = responses[i]
+        right_response = responses[j]
+
+        left_nn = network_models[i]
+        right_nn = network_models[j]
+
+        # Handle None values
+        binary_response = None if None in (left_response, right_response) else left_response < right_response
+
+        # Construct the new row for the binary rank DataFrame
+        row_data = {
+            'Left Binary Rank Image': left_image,
+            'Right Binary Rank Image': right_image,
+            'Left Neural Network Model': left_nn,
+            'Right Neural Network Model': right_nn,
+            'Left Image Shuffle Index': shuffle_indices[i],
+            'Right Image Shuffle Index': shuffle_indices[j],
+            'Binary Rank Response Left Image is Greater': binary_response
+        }
+
+        # Add key columns to the row
+        for col in key_columns:
+            row_data[col] = group[col].values[0]
+
+        # Append the new row to the list
+        new_rows.append(row_data)
+
+    # Return the list of new rows
+    return new_rows
+
+
+def binary_rank_table(df, network_models):
+    """
+    Break down rank items into binary image comparison tasks and create a new DataFrame.
+
+    Parameters:
+        df (pandas.DataFrame): The DataFrame containing survey responses.
+        network_models (list): List of network models used for evaluation.
+
+    Returns:
+        pandas.DataFrame: The new DataFrame with binary comparison tasks.
+    """
+
+    # Filter the DataFrame for "Rank" items and relevant network models
+    rank_df = df[(df['Item Type'] == "Rank") & df['Neural Network Model'].isin(network_models)]
+
+    # Define key columns
+    key_columns = ["Item Title Index", "Item Title", "Item Type",
+                   "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
+
+    # Define binary key columns for left and right sides
+    binary_key_columns = ["Neural Network Model", "Image Shuffle Index"]
+    left_key_columns = [f'Left {col}' if col in binary_key_columns else col for col in key_columns]
+    right_key_columns = [f'Right {col}' if col in binary_key_columns else col for col in key_columns]
+
+    # Initialize the new DataFrame for binary rank tasks
+    binary_rank_df = pd.DataFrame(columns=[
+        'Left Binary Rank Image', 'Right Binary Rank Image',
+        'Left Neural Network Model', 'Right Neural Network Model',
+        'Left Image Shuffle Index', 'Right Image Shuffle Index',
+        'Binary Rank Response Left Image is Greater'] + key_columns)
+
+    # Use multiprocessing to parallelize the processing of groups
+    import multiprocessing as mp
+    pool = mp.Pool(mp.cpu_count())
+
+    # Apply the process_group function to each group and get the results
+    results = pool.map(process_group, [group for _, group in rank_df.groupby(['Item Title Index', 'HITId'])])
+
+    # Close the pool and join the processes
+    pool.close()
+    pool.join()
+
+    # Flatten the results into a single list of rows
+    rows = [row for result in results for row in result]
+
+    # Append the rows to the binary rank DataFrame
+    binary_rank_df = pd.concat([binary_rank_df, pd.DataFrame(rows)], ignore_index=True)
+
     return binary_rank_df
-
-
-
 
 
 def binary_rank_table_old(df, network_models):
