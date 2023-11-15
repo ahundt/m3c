@@ -150,6 +150,7 @@ def assess_worker_responses(
 
     return rank_results, results_df, worker_skills
 
+
 def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseline','genericSD']):
     """ 
     Create grouped bar charts comparing the rankings amongst methods head to head 
