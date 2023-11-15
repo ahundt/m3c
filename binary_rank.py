@@ -9,7 +9,9 @@ from itertools import combinations
 import csv
 from tqdm import tqdm
 
+
 def binary_rank_table(df, network_models):
+    print("binary_rank_table step 1")
     # Filter the DataFrame for "Rank" items and relevant network models
     rank_df = df[(df['Item Type'] == "Rank") & df['Neural Network Model'].isin(network_models)]
  
@@ -19,42 +21,45 @@ def binary_rank_table(df, network_models):
  
     # Get the unique pairs of images for binary comparison
     image_combinations = rank_df.groupby(['Item Title Index', 'HITId'])['Image File Path'].apply(lambda x: list(combinations(sorted(x), 2))).explode().reset_index()
- 
+    print("binary_rank_table step 2")
     # Split the image pairs into left and right columns
     image_combinations[['Left Binary Rank Image', 'Right Binary Rank Image']] = pd.DataFrame(image_combinations['Image File Path'].tolist(), index=image_combinations.index)
- 
+    print("binary_rank_table step 3")
     # Drop the image pair column
     image_combinations.drop('Image File Path', axis=1, inplace=True)
- 
+    print("binary_rank_table step 4")
+
     # Merge the image combinations with the rank_df on the item title index and HITId
-    binary_rank_df = pd.merge(image_combinations, rank_df, on=['Item Title Index', 'HITId'], how='left')
- 
-    # Rename the columns for clarity
-    binary_rank_df.rename(columns={'Image File Path': 'Left Image File Path',
-                                   'Response': 'Left Response',
-                                   'Neural Network Model': 'Left Neural Network Model',
-                                   'Image Shuffle Index': 'Left Image Shuffle Index'}, inplace=True)
- 
+    binary_rank_df = pd.merge(image_combinations, rank_df, on=['Item Title Index', 'HITId'], how='left', suffixes=('_left', '_right'))
+    print("binary_rank_table step 5")
     # Merge the binary rank df with the rank_df again on the right image file path
-    binary_rank_df = pd.merge(binary_rank_df, rank_df, left_on=['Right Binary Rank Image', 'HITId'], right_on=['Image File Path', 'HITId'], how='left')
- 
-    # Rename the columns for clarity
-    binary_rank_df.rename(columns={'Image File Path': 'Right Image File Path',
-                                   'Response': 'Right Response',
-                                   'Neural Network Model': 'Right Neural Network Model',
-                                   'Image Shuffle Index': 'Right Image Shuffle Index'}, inplace=True)
- 
+    binary_rank_df = pd.merge(binary_rank_df, rank_df, left_on=['Right Binary Rank Image', 'HITId'], right_on=['Image File Path', 'HITId'], how='left', suffixes=('_left', '_right'))
+    print("binary_rank_table step 6")
     # Compute the binary response
-    binary_rank_df['Binary Rank Response Left Image is Greater'] = binary_rank_df.apply(lambda x: None if None in (x['Left Response'], x['Right Response']) else x['Left Response'] < x['Right Response'], axis=1)
- 
-    binary_rank_df.to_csv('binary_rank_df.csv', index=False)
-    # Reorder the columns
-    binary_rank_df = binary_rank_df[['Left Binary Rank Image', 'Right Binary Rank Image',
-                                     'Left Neural Network Model', 'Right Neural Network Model',
-                                     'Left Image Shuffle Index', 'Right Image Shuffle Index',
-                                     'Binary Rank Response Left Image is Greater'] + key_columns]
- 
+    binary_rank_df['Binary Rank Response Left Image is Greater'] = binary_rank_df.apply(lambda x: None if None in (x['Response_left'], x['Response_right']) else x['Response_left'] < x['Response_right'], axis=1)
+    print("binary_rank_table step 7")
+
+    # Drop the redundant columns
+    for col in binary_rank_df.columns:
+        if col.endswith('_left') and col[:-5] + '_right' in binary_rank_df.columns and binary_rank_df[col].equals(binary_rank_df[col[:-5] + '_right']):
+            binary_rank_df.drop(col[:-5] + '_right', axis=1, inplace=True)
+            binary_rank_df.rename(columns={col: col[:-5]}, inplace=True)
+        elif col.endswith('_right'):
+            # put "Right " in front of the column name
+            binary_rank_df.rename(columns={col: "Right " + col[:-6]}, inplace=True)
+        elif col.endswith('_left'):
+            # put "Left " in front of the column name
+            binary_rank_df.rename(columns={col: "Left " + col[:-5]}, inplace=True)
+    print("binary_rank_table step 8")
+    # # Reorder the columns
+    # binary_rank_df = binary_rank_df[['Left Binary Rank Image', 'Right Binary Rank Image',
+    #                                  'Neural Network Model_left', 'Neural Network Model_right',
+    #                                  'Image Shuffle Index_left', 'Image Shuffle Index_right',
+    #                                  'Binary Rank Response Left Image is Greater'] + key_columns]
+    binary_rank_df.to_csv('binary_rank_df.csv')
+    
     return binary_rank_df
+
 
 
 
