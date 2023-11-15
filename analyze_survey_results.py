@@ -87,7 +87,7 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     # print the columns of the DataFrame
     print(f'binary_rank_df.columns: {binary_rank_df.columns}')
     # print the unique workerIds in the binary_rank_df
-    print(f'Unique workers: binary_rank_df[worker_column].unique(): {binary_rank_df[worker_column].unique()}')
+    print(f'Unique workers: binary_rank_df[worker_column].unique(): {len(binary_rank_df[worker_column].unique())}')
     # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
     task_worker_label_df, task_to_id, worker_to_id, label_to_id, column_titles = binary_rank.simplify_binary_rank_table(
         binary_rank_df, worker_column=worker_column, label_column=label_column,
@@ -278,7 +278,9 @@ def statistical_analysis(df, network_models):
     print(f'Unique workers in binary rank table: binary_rank_df["WorkerId"].unique(): {len(binary_rank_df["WorkerId"].unique())}')
     # print a warning if the number of workers isn't the same as the number of unique workers in the original table
     if len(binary_rank_df["WorkerId"].unique()) != len(df["WorkerId"].unique()):
-        print(f'WARNING: CREATING THE BINARY TABLE DROPPED WORKERS, THERE IS A BUG! binary_rank_df["WorkerId"].unique() != df["WorkerId"].unique()')
+        # throw an exception if the number of workers isn't the same as the number of unique workers in the original table
+        raise ValueError(f'WARNING: CREATING THE BINARY TABLE CHANGED THE NUMBER OF WORKERS, THERE IS A BUG!'
+                         f'binary_rank_df["WorkerId"].unique(): {binary_rank_df["WorkerId"].unique()} != df["WorkerId"].unique(): {df["WorkerId"].unique()}')
 
     plot_binary_comparisons(binary_rank_df.copy())
 

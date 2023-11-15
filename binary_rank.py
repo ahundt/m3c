@@ -230,22 +230,37 @@ def simplify_binary_rank_table(
     # convert every entry to a string
     binary_rank_df = binary_rank_df.astype(str)
 
-    # Group by the specified columns
-    grouped = binary_rank_df.groupby(task_columns)
+    # # Group by the specified columns
+    # grouped = binary_rank_df.groupby(task_columns)
 
-    # Aggregate the columns into a single string
-    simplified_table = grouped.agg({
-        worker_column: 'first',
-        label_column: 'first'
-    }).reset_index()
+    # # Aggregate the columns into a single string
+    # simplified_table = grouped.agg({
+    #     worker_column: 'first',
+    #     label_column: 'first'
+    # }).reset_index()
+    # # save out worker and label simplified table
+    # simplified_table.to_csv('simplified_binary_rank_table_worker_and_label.csv', index=False, quoting=csv.QUOTE_ALL)
 
-    # double for loop to concatenate the titles and values of the combined columns into a single string per row
+    task_title = '|'.join(task_columns)
+    column_titles = {
+        'task': task_columns,
+        'worker': worker_column,
+        'label': label_column
+    }
+    
+    # concatenate all the task columns into a single column
     st2 = pd.DataFrame()
-    st2['task'] = simplified_table[task_columns[0]]
-    for col in task_columns[1:]:
-        st2['task'] = st2['task'] + separator + simplified_table[col]
-    st2['worker'] = simplified_table[worker_column]
-    st2['label'] = simplified_table[label_column]
+    st2['task'] = binary_rank_df[task_columns].apply(lambda row: separator.join(row), axis=1)
+    st2['worker'] = binary_rank_df[worker_column]
+    st2['label'] = binary_rank_df[label_column]
+
+    # # double for loop to concatenate the titles and values of the combined columns into a single string per row
+    # st2 = pd.DataFrame()
+    # st2['task'] = simplified_table[task_columns[0]]
+    # for col in task_columns[1:]:
+    #     st2['task'] = st2['task'] + separator + simplified_table[col]
+    # st2['worker'] = simplified_table[worker_column]
+    # st2['label'] = simplified_table[label_column]
 
     # st2.to_csv('simplified_binary_rank_table.csv', index=False, quoting=csv.QUOTE_ALL)
 
@@ -257,17 +272,17 @@ def simplify_binary_rank_table(
     # make a map from the label column to integer ids
     label_to_id = {label: i for i, label in enumerate(st2['label'].unique())}
 
-    # create st2_int with integer ids for all columns using the maps above
-    st2_int = pd.DataFrame()
-    st2_int['task'] = st2['task'].map(task_to_id)
-    st2_int['worker'] = st2['worker'].map(worker_to_id)
-    st2_int['label'] = st2['label'].map(label_to_id)
+    # # create st2_int with integer ids for all columns using the maps above
+    # st2_int = pd.DataFrame()
+    # st2_int['task'] = st2['task'].map(task_to_id)
+    # st2_int['worker'] = st2['worker'].map(worker_to_id)
+    # st2_int['label'] = st2['label'].map(label_to_id)
 
     # store the column names as a list
     column_titles = [task_columns, worker_column, label_column]
 
     # return the simplified int table, the maps, and the column names
-    return st2_int, task_to_id, worker_to_id, label_to_id, column_titles
+    return st2, task_to_id, worker_to_id, label_to_id, column_titles
 
 
 def restore_binary_rank_table(st2_int, task_to_id, worker_to_id, label_to_id, column_titles, separator='|'):
