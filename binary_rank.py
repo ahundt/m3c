@@ -316,37 +316,43 @@ def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
     return st2
 
 
-def reconstruct_ranking(binary_rank_df, group_by=['Item Title', 'Country'], category_column='Neural Network Model', aggregate_response_column='agg_label', rank_method='min'):
+def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural Network Model', response='agg_label', rank_method='min'):
     """
     Reconstruct the ranking of the categories according to the specified grouping.
 
     Parameters:
-        binary_rank_df (pandas.DataFrame): The DataFrame containing the binary rank tasks and responses.
+        df (pandas.DataFrame): The DataFrame containing the binary rank tasks and responses.
         group_by (list): The list of columns to group by. The function will calculate the ranking within each group separately.
-        category_column (str): The name of the column containing the category. Default is 'Neural Network Model'.
-        aggregate_response_column (str): The name of the column containing the aggregate response. Default is 'agg_label'.
+        category (str): The name of the column containing the category.
+        response (str): The name of the column containing the response. The response should be either 1, 0, or None, where 1 means that the left category won the comparison, 0 means that the right category won the comparison, and None means that the comparison was not completed or the response was invalid.
         rank_method (str): The method for assigning the rank. Default is 'min'.
 
     Returns:
         pandas.DataFrame: The DataFrame containing the reconstructed ranking of the categories for each group, sorted from highest to lowest rank within each group.
     """
 
-    # Create a copy of the binary rank DataFrame
-    df = binary_rank_df.copy()
+    # Create a copy of the DataFrame
+    df = df.copy()
 
     # Search for columns containing the category column string
-    category_columns = [col for col in df.columns if category_column in col]
+    category_columns = [col for col in df.columns if category in col]
 
     # Check if there are exactly two category columns
     if len(category_columns) != 2:
-        raise ValueError(f'Expected 2 columns containing {category_column}, found {len(category_columns)}')
+        raise ValueError(f'Expected 2 columns containing {category}, found {len(category_columns)}')
 
     # Assign the left and right category columns
     left_category_column = category_columns[0]
     right_category_column = category_columns[1]
 
     # Create a new column for the wins
-    df['wins'] = df[aggregate_response_column]
+    df['wins'] = df[response]
+
+    # Define a mapping from string to boolean
+    str_to_bool = {'True': True, 'False': False, '1': True, '0': False}
+
+    # Convert the wins column to string, map the string values to boolean, and convert to integer
+    df['wins'] = df['wins'].astype(str).map(str_to_bool).astype(int)
 
     # Stack the left and right sides of the DataFrame
     df = pd.concat([df[group_by + [left_category_column, 'wins']], df[group_by + [right_category_column, 'wins']].rename(columns={right_category_column: left_category_column})], ignore_index=True)
@@ -355,18 +361,27 @@ def reconstruct_ranking(binary_rank_df, group_by=['Item Title', 'Country'], cate
     df['wins'] = df['wins'].replace({0: 1, 1: 0})
 
     # Rename the category column to the specified name
-    df = df.rename(columns={left_category_column: category_column})
+    df = df.rename(columns={left_category_column: category})
 
     # Group by the group by and category columns and sum the wins
-    wins_df = df.groupby(group_by + [category_column])['wins'].sum().reset_index()
+    wins_df = df.groupby(group_by + [category])['wins'].sum().reset_index()
 
     # Rank the categories within each group based on the number of wins
-    wins_df['Rank'] = wins_df.groupby(group_by)['wins'].rank(ascending=False, method=rank_method)
+    if group_by:
+        wins_df['Rank'] = wins_df.groupby(group_by)['wins'].rank(ascending=False, method=rank_method)
+    else:
+        wins_df['Rank'] = wins_df['wins'].rank(ascending=False, method=rank_method)
 
     # Sort the DataFrame within each group from highest to lowest rank
-    wins_df = wins_df.sort_values(by=group_by + ['Rank'], ascending=[True] * len(group_by) + [True])
+    wins_df = wins_df.sort_values(by=group_by + ['Rank'])
+
+    # Convert the Rank column and wins column to integer
+    wins_df['Rank'] = wins_df['Rank'].astype(int)
+    wins_df['wins'] = wins_df['wins'].astype(int)
 
     return wins_df
+
+
 
 
 

@@ -74,7 +74,13 @@ def extract_and_process_task_answers(task_answers):
     return pd.Series(ratings_data)  # Convert the dictionary to a Series
 
 
-def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_column="Binary Rank Response Left Image is Greater"):
+def assess_worker_responses(
+        binary_rank_df,  
+        worker_column="WorkerId", 
+        label_column="Binary Rank Response Left Image is Greater",
+        crowdkit_grouping_columns = ['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country'],
+        binary_rank_reconstruction_grouping_columns=['Item Title', 'Country']
+    ):
     """
     Assess worker responses using the MMSR (Matrix Mean-Subsequence-Reduced) algorithm.
 
@@ -91,12 +97,15 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     # print the unique workerIds in the binary_rank_df
     print(f'Unique workers: binary_rank_df[worker_column].unique(): {len(binary_rank_df[worker_column].unique())}')
     # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
-    grouping_columns = ['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country']
     task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_format(
         binary_rank_df, worker_column=worker_column, label_column=label_column,
-        task_columns=grouping_columns
+        task_columns=crowdkit_grouping_columns
     )
     # print table restore metadata
+    # join crowdkit_grouping_columns with a dash and replace space with dash
+    crowdkit_grouping_columns_str = '-'.join(crowdkit_grouping_columns).replace(' ', '-')
+    # join binary_rank_reconstruction_grouping_columns with a dash
+    binary_rank_reconstruction_grouping_columns_str = '-'.join(binary_rank_reconstruction_grouping_columns).replace(' ', '-')
 
     # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
@@ -120,22 +129,24 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), Results:')
     print(results_df)
     # save results to a file
-    results_df.to_csv("mmsr_results.csv")
+    results_df.to_csv(f"mmsr_results-{crowdkit_grouping_columns_str}.csv")
     # result = mmsr.fit_predict_score(simplified_table)
     worker_skills = pd.Series(mmsr.skills_)
     # save worker skills to a file
-    worker_skills.to_csv("mmsr_worker_skills.csv")
+    worker_skills.to_csv(f"mmsr_worker_skills-{crowdkit_grouping_columns_str}.csv")
     print(worker_skills)
     # convert the results_df to a dataframe and make the index the task columns
     
     results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df: {results_df}')
-    results_df.to_csv("mmsr_results_restored.csv")
-    rank_results = binary_rank.reconstruct_ranking(results_df, ['Item Title', 'Country'])
+    results_df.to_csv(f"mmsr_results_restored-{binary_rank_reconstruction_grouping_columns_str}.csv")
+    # print the columns of results_df
+    print(f'results_df.columns: {results_df.columns}')
+    rank_results = binary_rank.reconstruct_ranking(results_df, binary_rank_reconstruction_grouping_columns)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), reconstruct_ranking() rank_results: {rank_results}')
-    rank_results.to_csv("mmsr_rank_results.csv")
+    rank_results.to_csv("mmsr_rank_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
 
-    return worker_skills
+    return rank_results, results_df, worker_skills
 
 def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseline','genericSD']):
     """ 
@@ -297,7 +308,14 @@ def statistical_analysis(df, network_models):
 
     plot_binary_comparisons(binary_rank_df.copy())
 
-    worker_skills = assess_worker_responses(binary_rank_df)
+    # ranking per country and per question
+    rank_results_ci, results_df_ci, worker_skills_ci = assess_worker_responses(binary_rank_df)
+    # ranking per country
+    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Country'], binary_rank_reconstruction_grouping_columns=['Country'])
+    # ranking per question
+    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type'], binary_rank_reconstruction_grouping_columns=['Item Title'])
+    # overall ranking (across all countries and questions)
+    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model','Item Type'], binary_rank_reconstruction_grouping_columns=[])
 
     # TODO(ahundt) add statistical analysis here, save results to a file, and visualize them
 
