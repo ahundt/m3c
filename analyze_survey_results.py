@@ -129,7 +129,10 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     # convert the results_df to a dataframe and make the index the task columns
     
     results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
-    rank_results = binary_rank.reconstruct_ranking(results_df, grouping_columns)
+    print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df: {results_df}')
+    results_df.to_csv("mmsr_results_restored.csv")
+    rank_results = binary_rank.reconstruct_ranking(results_df, ['Item Title', 'Country'])
+    print(f'Finished CrowdKit Optimization MMSR.fit_predict(), reconstruct_ranking() rank_results: {rank_results}')
     rank_results.to_csv("mmsr_rank_results.csv")
 
     return worker_skills
