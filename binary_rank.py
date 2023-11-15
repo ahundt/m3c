@@ -13,8 +13,8 @@ from tqdm import tqdm
 def process_group(group):
 
     # Define key columns
-    key_columns = ["Item Title Index", "Item Title", "Item Type",
-                   "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
+    key_columns = ["Item Title Index", "Item Title", "Item Type", "Country", 
+                   "Source CSV File", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
     # Get the list of images and sort them
     images = sorted(group['Image File Path'].to_list())
 
@@ -38,6 +38,11 @@ def process_group(group):
 
         left_nn = network_models[i]
         right_nn = network_models[j]
+        # check if the HITId and WorkerID is the same for both images, and print a warning if not
+        if group['HITId'].values[i] != group['HITId'].values[j]:
+            print(f'Warning: HITId is not the same for both images: {left_image} and {right_image}')
+        if group['WorkerId'].values[i] != group['WorkerId'].values[j]:
+            print(f'Warning: WorkerId is not the same for both images: {left_image} and {right_image}')
 
         # Handle None values
         binary_response = None if None in (left_response, right_response) else left_response < right_response
@@ -80,8 +85,8 @@ def binary_rank_table(df, network_models):
     rank_df = df[(df['Item Type'] == "Rank") & df['Neural Network Model'].isin(network_models)]
 
     # Define key columns
-    key_columns = ["Item Title Index", "Item Title", "Item Type",
-                   "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
+    key_columns = ["Item Title Index", "Item Title", "Item Type", "Country", 
+                   "Source CSV File", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
 
     # Define binary key columns for left and right sides
     binary_key_columns = ["Neural Network Model", "Image Shuffle Index"]
@@ -101,7 +106,7 @@ def binary_rank_table(df, network_models):
 
     # Apply the process_group function to each group and get the results
     # Use imap_unordered and tqdm to show the progress
-    results = list(tqdm(pool.imap_unordered(process_group, [group for _, group in rank_df.groupby(['Item Title Index', 'HITId'])]), desc="Creating binary rank table", total=len(rank_df.groupby(['Item Title Index', 'HITId']))))
+    results = list(tqdm(pool.imap_unordered(process_group, [group for _, group in rank_df.groupby(['Source CSV File', 'Source CSV Row Index', 'Item Title Index', 'HITId'])]), desc="Creating binary rank table", total=len(rank_df.groupby(['Item Title Index', 'HITId']))))
 
     # Close the pool and join the processes
     pool.close()
@@ -132,8 +137,8 @@ def binary_rank_table_old(df, network_models):
     rank_df = df[(df['Item Type'] == "Rank") & df['Neural Network Model'].isin(network_models)]
 
     # Define key columns
-    key_columns = ["Item Title Index", "Item Title", "Item Type",
-                   "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
+    key_columns = ["Item Title Index", "Item Title", "Item Type", "Country", 
+                   "Source CSV File", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", "WorkerId"]
 
     # Define binary key columns for left and right sides
     binary_key_columns = ["Neural Network Model", "Image Shuffle Index"]
@@ -148,7 +153,7 @@ def binary_rank_table_old(df, network_models):
         'Binary Rank Response Left Image is Greater'] + key_columns)
 
     # Iterate through unique pairs of images for binary comparison
-    for _, group in tqdm(rank_df.groupby(['Item Title Index', 'HITId']), desc="Creating binary rank table"):
+    for _, group in tqdm(rank_df.groupby(['Source CSV File', 'Source CSV Row Index', 'Item Title Index', 'HITId']), desc="Creating binary rank table"):
         image_combinations = list(combinations(sorted(group['Image File Path'].to_list()), 2))
 
         for left_image, right_image in image_combinations:
@@ -301,7 +306,9 @@ if __name__ == "__main__":
         'Source CSV Row Index': [1, 2, 3, 4, 5, 6],
         'Input.prompt': ['Prompt1', 'Prompt1', 'Prompt2', 'Prompt2', 'Prompt3', 'Prompt3'],
         'Input.seed': [123, 123, 456, 456, 789, 789],
-        'WorkerId': ['Worker1', 'Worker1', 'Worker2', 'Worker2', 'Worker3', 'Worker3']
+        'WorkerId': ['Worker1', 'Worker1', 'Worker2', 'Worker2', 'Worker3', 'Worker3'],
+        'Source CSV File': ['data.csv', 'data.csv', 'data.csv', 'data.csv', 'data.csv', 'data.csv'],
+        'Source CSV Row Index': [1, 1, 2, 2, 3, 3]
     }
 
     df = pd.DataFrame(data)
@@ -313,7 +320,39 @@ if __name__ == "__main__":
     old_df = binary_rank_table_old(df, network_models)
 
     # Compare the outputs
-    print(old_df.equals(new_df))
+    functions_match = old_df.equals(new_df)
+    print(f"Parallel and Single Threaded Function outputs match: {functions_match}")
+
+    # If the results are different, print the differences
+    if not functions_match:
+        print("Bug Detcted! The Parallel and Single Threaded code differs!")
+        # check each column name and print those that differ
+        for i, col_name in enumerate(new_df.columns):
+            if col_name != old_df.columns[i]:
+                print(f"Column {i} name differs: {col_name} != {old_df.columns[i]}")
+        # print the old df
+        new_s = new_df.to_string()
+        old_s = old_df.to_string()
+        # check if old string and new string are equal
+        print(f"New Dataframe String Equals Old Dataframe String: \n{new_s==old_s}")
+        print(f"New DataFrame:\n{new_s}")
+        print(f"Old DataFrame:\n{old_s}")
+        # Compare the dataframes
+        diff_df = old_df.compare(new_df)
+
+        # Iterate over the rows
+        for row in diff_df.iterrows():
+            index, data = row
+
+            # Iterate over the columns
+            for column in data.iteritems():
+                column_name, diff = column
+
+                # If the cell is not NaN, print the difference
+                if pd.notna(diff[0]) or pd.notna(diff[1]):
+                    print(f"Row {index}, Column {column_name} - old value: {diff[0]}, new value: {diff[1]}")
+
+
 
     # Save the binary rank results to a CSV file
     old_df.to_csv('binary_rank_results_old.csv', index=False)
@@ -333,7 +372,9 @@ if __name__ == "__main__":
         'Input.prompt': ['Prompt1', 'Prompt2', 'Prompt3'],
         'Input.seed': [123, 456, 789],
         'WorkerId': ['Worker1', 'Worker2', 'Worker3'],
-        'Binary Rank Response Left Image is Greater': [True, False, True]
+        'Binary Rank Response Left Image is Greater': [True, False, True],
+        'Source CSV File': ['data.csv', 'data.csv', 'data.csv'],
+        'Source CSV Row Index': [1, 1, 1]
     }
 
     binary_rank_df = pd.DataFrame(data)
