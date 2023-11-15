@@ -189,7 +189,7 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
             plot_barchart(df_grouped_subset, ax)
             ax.set_title('{}, {}'.format(country, item_title))
             
-    plt.savefig('binary_comparison_per_country.png')
+    plt.savefig('binary_comparison_per_country.pdf')
     plt.close(fig)
     # plt.show()
 
@@ -205,7 +205,7 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
         plot_barchart(df_grouped_subset, ax)
         ax.set_title('{}'.format(item_title))
             
-    plt.savefig('binary_comparison.png')
+    plt.savefig('binary_comparison.pdf')
     plt.close(fig)
     # plt.show()
 
@@ -273,6 +273,8 @@ def statistical_analysis(df, network_models):
     # Binary Rank Stats
     ####################
     binary_rank_df = binary_rank.binary_rank_table(df, network_models)
+    # single threaded version
+    # binary_rank_df = binary_rank.binary_rank_table(df, network_models)
     binary_rank_df.to_csv("statistical_output_binary_rank.csv")
     # print the count of unique workers
     print(f'Unique workers in binary rank table: binary_rank_df["WorkerId"].unique(): {len(binary_rank_df["WorkerId"].unique())}')
