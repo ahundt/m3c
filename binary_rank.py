@@ -316,7 +316,7 @@ def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
     return st2
 
 
-def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural Network Model', response='agg_label', rank_method='min'):
+def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural Network Model', response='agg_label', rank_method='max'):
     """
     Reconstruct the ranking of the categories according to the specified grouping.
 
@@ -325,7 +325,7 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
         group_by (list): The list of columns to group by. The function will calculate the ranking within each group separately.
         category (str): The name of the column containing the category.
         response (str): The name of the column containing the response. The response should be either "True", "False", 1, 0, or None, where 1 means that the left category won the comparison, 0 means that the right category won the comparison, and None means that the comparison was not completed or the response was invalid.
-        rank_method (str): The method for assigning the rank. Default is 'min'.
+        rank_method (str): The method for assigning the rank. Default is 'max'.
 
     Returns:
         pandas.DataFrame: The DataFrame containing the reconstructed ranking of the categories for each group, sorted from highest to lowest rank within each group.
@@ -357,13 +357,13 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
     valid_responses = ["True", "False", 1, 0, None]
     if not df[response].isin(valid_responses).all():
         raise ValueError(f'The response column should contain only {valid_responses}, found {df[response].unique()}')
-    
+
     # Map "True" to 1 and "False" to 0
     df[response] = df[response].map({True: 1, False: 0, "True": 1, "False": 0, 1:1, 0:0, None:None})
 
     # Count wins for the left and right models, grouped by the specified columns
-    left_wins = df[df[response] == 1].groupby(group_by + [left_category]).size()
-    right_wins = df[df[response] == 0].groupby(group_by + [right_category]).size()
+    left_wins = df[df[response] == 1].groupby(group_by + [left_category_column]).size()
+    right_wins = df[df[response] == 0].groupby(group_by + [right_category_column]).size()
 
     # Combine the wins for the left and right models
     wins = left_wins.add(right_wins, fill_value=0).reset_index()
@@ -384,6 +384,7 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
         wins = wins.sort_values(by=['Rank'])
 
     return wins
+
 
 
 
