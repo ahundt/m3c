@@ -17,6 +17,34 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
+def check_column_group_for_consistent_values_in_another_column(df, columns_to_group=["HITId"], columns_to_match=["WorkerId"]):
+    """ Check if a group of columns have consistent values in another column. Useful for dataset and processing validation.
+
+        Parameters:
+            df (pandas.DataFrame): The DataFrame containing the columns to check.
+            column_to_check (str, optional): The name of the column to check (default is "HITId").
+            column_to_match (str, optional): The name of the column to match (default is "WorkerId").
+
+        Returns:
+            bool: True if the values in the column are consistent, False otherwise.
+    """
+    # Vectorized pandas check if the values in the column to check are consistent
+    # with the values in the column to match
+    group = df.groupby(columns_to_group)[columns_to_match]
+    all_ok = group.nunique().eq(1).all()
+
+    # print a warning for the user if the values are not consistent, specifying which values are problematic
+    if not all_ok.all():
+        print(f'WARNING: {columns_to_group} values are not consistent with {columns_to_match} values!')
+        print(f'Problematic values: {group.nunique()[group.nunique() != 1]}')
+        # print the file and rows that apply
+        print(f'Problematic file: {df["Source CSV File"].unique()}')
+        print(f'Problematic rows: {df[group.nunique() != 1].index}')
+        # raise an exception if the values are not consistent
+        raise ValueError(f'{columns_to_group} rows have {columns_to_match} values that vary!')
+    
+    return all_ok
+
 def extract_and_process_entry(entry, value):
     """ Extract and process a single entry from the Answer.taskAnswers column.
     """
@@ -323,8 +351,6 @@ def add_survey_item_data_to_dataframe(df, human_survey_items, network_models):
         Returns:
             pandas.DataFrame: A new DataFrame with the specified columns added.
     """
-    # Create "Source CSV Row Index" column
-    df['Source CSV Row Index'] = df.index
     df_initial_size = len(df)
 
     # Add "Item Title Index" column to human_survey_items
@@ -417,7 +443,10 @@ def process_survey_results_csv(csv_file, survey_items_file, network_models):
     # Load CSV Data Using Pandas
     df = pd.read_csv(csv_file)
     # add the csv file name as a column
-    df['CSV File'] = csv_file
+    df['Source CSV File'] = csv_file
+    # Create "Source CSV Row Index" column
+    df['Source CSV Row Index'] = df.index
+    check_column_group_for_consistent_values_in_another_column(df, columns_to_group=['Source CSV File','Source CSV Row Index'], columns_to_match=["WorkerId"])
 
     # Apply extract_and_process_task_answers to extract and process ratings data
     ratings_df = df['Answer.taskAnswers'].apply(extract_and_process_task_answers)
@@ -434,7 +463,7 @@ def process_survey_results_csv(csv_file, survey_items_file, network_models):
     # Determine the number of items for analysis from human_survey_items.csv
     human_survey_items = pd.read_csv(survey_items_file)
     num_items = len(human_survey_items)
-    
+
     # Add "Item Title Index", "Item Title", "Item Type", and "Neural Network Model" columns to df,
     # and duplicate rows by the number of items so that these columns are unique and can be used for analysis
     df = add_survey_item_data_to_dataframe(df, human_survey_items, network_models)
@@ -445,6 +474,7 @@ def process_survey_results_csv(csv_file, survey_items_file, network_models):
     # The "Response" column is the rating for part of an item, such as an individual image's ranks.
     df = get_response_rows_per_image(df, network_models)
 
+    check_column_group_for_consistent_values_in_another_column(df, columns_to_group=['Source CSV File','Source CSV Row Index'], columns_to_match=["WorkerId"])
     return df
 
 
@@ -457,7 +487,7 @@ def test():
         'Input.img1': ['abc/hello1.png', 'def/helo2.png', 'ghi/hello3.png'],
         'Input.img2': ['def/ty.png', 'abc/as.png', 'ghi/io.png'],
         'Item Title Index': [1, 2, 3],
-        'Neural Network Model': ['abc', 'def', None]  # Step 1
+        'Neural Network Model': ['abc', 'def', None]
     }
 
     # Columns needed for response_column_name
