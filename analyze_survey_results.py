@@ -58,27 +58,42 @@ def assess_worker_responses(binary_rank_df,  worker_column="WorkerId", label_col
     """
     # print the columns of the DataFrame
     print(f'binary_rank_df.columns: {binary_rank_df.columns}')
+    # print the unique workerIds in the binary_rank_df
+    print(f'Unique workers: binary_rank_df[worker_column].unique(): {binary_rank_df[worker_column].unique()}')
     # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
-    st2_int, task_to_id, worker_to_id, label_to_id, column_titles = binary_rank.simplify_binary_rank_table(binary_rank_df, worker_column=worker_column, label_column=label_column)
+    task_worker_label_df, task_to_id, worker_to_id, label_to_id, column_titles = binary_rank.simplify_binary_rank_table(
+        binary_rank_df, worker_column=worker_column, label_column=label_column,
+        task_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country']
+    )
+    n_workers = len(worker_to_id)
+    n_tasks = len(task_to_id)
+    n_labels = len(label_to_id)
+    print(f'n_workers: {n_workers}, n_tasks: {n_tasks}, n_labels: {n_labels}')
     # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
-    worker_skills = None
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
     from crowdkit.aggregation import MMSR
     mmsr = MMSR(
         n_iter=10000,
         tol=1e-10,
-        n_workers=len(worker_to_id),
-        n_tasks=len(st2_int),
-        n_labels=2,  # Assuming binary responses
+        n_workers=n_workers,
+        n_tasks=n_tasks,
+        n_labels=n_labels,  # Assuming binary responses
         workers_mapping=worker_to_id,
         tasks_mapping=task_to_id,
         labels_mapping=label_to_id,
     )
+    print(f'st2_int.shape: {task_worker_label_df.shape} \ntask_worker_label_df:\n{task_worker_label_df}')
+    task_worker_label_df.to_csv("task_worker_label_df.csv")
 
     # Fit the model and predict worker skills
-    result = mmsr.fit_predict_score(st2_int)
+    result = mmsr.fit_predict(task_worker_label_df)
+    # save results to a file
+    result.to_csv("mmsr_result.csv")
+    # result = mmsr.fit_predict_score(simplified_table)
     worker_skills = pd.Series(mmsr.skills_)
-    # print(result)
+    # save worker skills to a file
+    worker_skills.to_csv("mmsr_worker_skills.csv")
+    print(result)
     print(worker_skills)
 
     return worker_skills
@@ -166,6 +181,7 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
     plt.close(fig)
     # plt.show()
 
+
 def statistical_analysis(df, network_models):
     """ Perform statistical analysis on the DataFrame.
 
@@ -187,8 +203,6 @@ def statistical_analysis(df, network_models):
     print(df)
     df.to_csv("statistical_analysis_input.csv")
 
-
-
     ####################
     # All data stats
     ####################
@@ -205,7 +219,7 @@ def statistical_analysis(df, network_models):
     aggregated_df = grouped.agg(aggregation_functions).reset_index()
 
     # Save the aggregated DataFrame to a CSV file
-    aggregated_df.to_csv("aggregated_statistical_output_by_country.csv", index=False)
+    aggregated_df.to_csv("aggregated_statistical_output_all_data.csv", index=False)
 
     ####################
     # Per country stats
@@ -221,10 +235,10 @@ def statistical_analysis(df, network_models):
     }
 
     # Perform aggregation and reset the index
-    aggregated_df = grouped.agg(aggregation_functions).reset_index()
+    aggregated_df_per_country = grouped.agg(aggregation_functions).reset_index()
 
     # Save the aggregated DataFrame to a CSV file
-    aggregated_df.to_csv("aggregated_statistical_output_by_country.csv", index=False)
+    aggregated_df_per_country.to_csv("aggregated_statistical_output_by_country.csv", index=False)
 
 
     ####################
@@ -232,6 +246,11 @@ def statistical_analysis(df, network_models):
     ####################
     binary_rank_df = binary_rank.binary_rank_table(df, network_models)
     binary_rank_df.to_csv("statistical_output_binary_rank.csv")
+    # print the count of unique workers
+    print(f'Unique workers in binary rank table: binary_rank_df["WorkerId"].unique(): {len(binary_rank_df["WorkerId"].unique())}')
+    # print a warning if the number of workers isn't the same as the number of unique workers in the original table
+    if len(binary_rank_df["WorkerId"].unique()) != len(df["WorkerId"].unique()):
+        print(f'WARNING: CREATING THE BINARY TABLE DROPPED WORKERS, THERE IS A BUG! binary_rank_df["WorkerId"].unique() != df["WorkerId"].unique()')
 
     plot_binary_comparisons(binary_rank_df.copy())
 
@@ -465,7 +484,8 @@ def main():
     """
     # Command Line Parameter Parsing
     parser = argparse.ArgumentParser(description="Survey Data Analysis")
-    parser.add_argument("--response_results", type=str, default="Batch_393773_batch_results.csv", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
+    parser.add_argument("--response_results", type=str, default="m3c_cvpr_results_11_14", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
+    # parser.add_argument("--response_results", type=str, default="Batch_393773_batch_results.csv", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
     parser.add_argument("--survey_items_file", type=str, default="human_survey_items.csv", help="Path to the human_survey_items.csv file")
     parser.add_argument("--network_models", type=str, nargs='+', default=["baseline", "contrastive", "genericSD", "positive"], help="List of neural network model names")
     args = parser.parse_args()
