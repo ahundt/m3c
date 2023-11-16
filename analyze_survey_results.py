@@ -149,6 +149,36 @@ def assess_worker_responses(
     worker_skills.to_csv(f"mmsr_worker_skills-{crowdkit_grouping_columns_str}.csv")
     print(worker_skills)
     # convert the results_df to a dataframe and make the index the task columns
+
+    # visualize the mmsr observation matrix
+    observation_matrix = mmsr._observation_matrix
+    # Visualizing the Observation Matrix as a Heatmap
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(observation_matrix, cmap='viridis', fmt='.2f')
+    # sns.heatmap(observation_matrix, cmap='viridis', annot=True, fmt='.2f')
+    plt.title('Observation Matrix Heatmap')
+    plt.xlabel('Variables')
+    plt.ylabel('Observations')
+    # plt.show()
+    # save the observation matrix and plot to a file
+    np.savetxt(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.csv", observation_matrix, delimiter=",")
+    plt.savefig(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.png")
+    plt.savefig(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.pdf")
+
+    # visualize the mmsr covariance matrix
+    covariance_matrix = mmsr._covariation_matrix
+    # Visualizing the Covariance Matrix as a Heatmap
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(covariance_matrix, cmap='coolwarm', fmt='.2f')
+    # sns.heatmap(covariance_matrix, cmap='coolwarm', annot=True, fmt='.2f')
+    plt.title('Covariance Matrix Heatmap')
+    plt.xlabel('Variables')
+    plt.ylabel('Variables')
+    # plt.show()
+    # save the covariance matrix and plot to a file
+    np.savetxt(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.csv", covariance_matrix, delimiter=",")
+    plt.savefig(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.png")
+    plt.savefig(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.pdf")
     
     results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df: {results_df}')
