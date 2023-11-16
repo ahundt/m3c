@@ -39,7 +39,7 @@ def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None,
     plt.title('Rankings by Neural Network Model', fontsize=18, fontweight='bold')
     plt.legend(loc='lower left', bbox_to_anchor=(0, 0), fontsize=10)
     plt.gca().invert_yaxis()
-    plt.yticks(fontsize=12)
+    plt.yticks(np.arange(1, data[y].max() + 1, 1), fontsize=12)  # Setting y-axis ticks to integers only
     plt.xticks(fontsize=12)
     plt.tight_layout()
     
