@@ -10,6 +10,7 @@ import tqdm
 import datetime
 import glob
 import util
+import shutil
 
 def find_csv_files(directory):
     """
