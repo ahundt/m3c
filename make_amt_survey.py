@@ -305,20 +305,27 @@ def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surv
     # Calculate summary statistics
     unique_prompts = df['prompt'].nunique()
     unique_seeds = df['seed'].nunique()
-    image_cols = df.filter(regex='img\d')
-    unique_models = image_cols.nunique().max() if not image_cols.empty else 0
+    image_col_titles = df.filter(regex='img\d')
+    unique_models = image_col_titles.nunique().max() if not image_col_titles.empty else 0
     items_per_page = items.shape[0]
     unique_pages = df.shape[0]
     unique_countries = df['Country'].nunique()
+    # get the unique images per model by unique images per img column, and check the counts all match
+    unique_images_per_model = image_col_titles.nunique()
+    # check that all the unique images per model counts are equal
+    if unique_images_per_model.max() != unique_images_per_model.min():
+        # print a warning if they are not all equal
+        print(f"WARNING: unique_images_per_model.max() != unique_images_per_model.min() for {output_filename}, this may indicate a problem with the data or inconsistent sampling in the survey.")
 
     counts = pd.DataFrame({
-        'Summary': ['Counts'],
+        'Summary': ['Total Across All Countries'],
         'Unique Prompts': [unique_prompts],
         'Unique Seeds': [unique_seeds],
         'Unique Models': [unique_models],
         'Items per Page': [items_per_page],
         'Unique Pages': [unique_pages],
-        'Unique Countries': [unique_countries]
+        'Unique Countries': [unique_countries],
+        'Unique Images Per Model': [unique_images_per_model.max()],
     })
     # set the counts row name to "Overall Counts"
     counts.set_index('Summary', inplace=True)
@@ -327,15 +334,22 @@ def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surv
     # Make the Counts row named 'Summary'
     counts.index.name = 'Summary'
 
-    # Per-country statistics
-    per_country_stats = df.groupby('Country').agg({
+    # put image cols in dictionary format for aggregation, with value ['count', 'nunique']
+    aggregation_description = {
         'prompt': 'nunique',
         'seed': 'nunique',
-        'Country': 'count'
-    }).rename(columns={'prompt': 'Unique Prompts Per Country', 'seed': 'Unique Images Per Model', 'Country': 'Number of Survey Pages'})
-
+        'Country': 'count',
+    }
+    aggregation_description.update({col: ['count', 'nunique'] for col in image_col_titles.columns})
+    # Per-country statistics
+    per_country_stats = df.groupby('Country').agg(aggregation_description).rename(columns={'prompt': 'Unique Prompts Per Country', 'seed': 'Unique Random Seeds Used', 'Country': 'Number of Survey Pages'})
+    
+    counts.index.name = 'Country'
     save_as_csv_and_tex(counts, output_folder, f"{output_filename}_counts", "Counts")
     save_as_csv_and_tex(per_country_stats, output_folder, f"{output_filename}_per_country_stats", "Per Country Stats")
+    # print the stats to the console
+    print(f'Counts:\n{counts}')
+    print(f'Per Country Stats:\n{per_country_stats}')
 
 
 
