@@ -269,12 +269,12 @@ def save_as_csv_and_tex(data, output_folder, output_filename, description):
     """
     # Save as CSV
     csv_file_path = os.path.join(output_folder, f"{output_filename}.csv")
-    data.to_csv(csv_file_path, index=False)  # Avoid saving the DataFrame index
+    data.to_csv(csv_file_path)  # Avoid saving the DataFrame index
     print(f'{description} saved as CSV to: {csv_file_path}')
 
     # Save as LaTeX
     tex_file_path = os.path.join(output_folder, f"{output_filename}.tex")
-    data.to_latex(tex_file_path, index=False)
+    data.to_latex(tex_file_path)
     print(f'{description} saved as LaTeX to: {tex_file_path}')
 
 def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surveys", output_filename="survey_summary_stats"):
@@ -294,18 +294,13 @@ def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surv
     items = pd.read_csv(survey_items_csv)
     df_list = []
 
-    # Loop over the CSV files
+    # Load and combine survey data
     for csv_file in csv_files:
-        # Read the CSV file into a DataFrame
         df = pd.read_csv(csv_file)
-
-        # Add a Country column from the filename
         df['Country'] = get_country_name(csv_file)
-        # Append the DataFrame to the list
         df_list.append(df)
 
     df = pd.concat(df_list)
-    summary_stats = df.describe()
 
     # Calculate summary statistics
     unique_prompts = df['prompt'].nunique()
@@ -316,7 +311,6 @@ def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surv
     unique_pages = df.shape[0]
     unique_countries = df['Country'].nunique()
 
-    # Create a DataFrame with the counts
     counts = pd.DataFrame({
         'Summary': ['Counts'],
         'Unique Prompts': [unique_prompts],
@@ -326,18 +320,20 @@ def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surv
         'Unique Pages': [unique_pages],
         'Unique Countries': [unique_countries]
     })
+    # set the counts row name to "Overall Counts"
+    counts.set_index('Summary', inplace=True)
+    # Rename the 'Counts' column to 'Summary'
+    counts.rename(columns={'Counts': 'Summary'}, inplace=True)
+    # Make the Counts row named 'Summary'
+    counts.index.name = 'Summary'
 
     # Per-country statistics
     per_country_stats = df.groupby('Country').agg({
         'prompt': 'nunique',
         'seed': 'nunique',
         'Country': 'count'
-    }).rename(columns={'prompt': 'Unique Prompts', 'seed': 'Unique Seeds', 'Country': 'Count'})
+    }).rename(columns={'prompt': 'Unique Prompts Per Country', 'seed': 'Unique Images Per Model', 'Country': 'Number of Survey Pages'})
 
-    # Combine and save summary statistics
-    all_stats = pd.concat([summary_stats, counts, per_country_stats], axis=0)
-
-    save_as_csv_and_tex(summary_stats, output_folder, f"{output_filename}_summary_stats", "Summary Stats")
     save_as_csv_and_tex(counts, output_folder, f"{output_filename}_counts", "Counts")
     save_as_csv_and_tex(per_country_stats, output_folder, f"{output_filename}_per_country_stats", "Per Country Stats")
 
