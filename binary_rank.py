@@ -481,7 +481,7 @@ if __name__ == "__main__":
 
     # Print the results
     print(f'rank_results: \n{rank_results}')
-"""
+
     # Example usage
     data = {
         'Item Title Index': [1, 1, 2, 2, 3, 3],
@@ -579,4 +579,3 @@ if __name__ == "__main__":
     st2 = restore_from_crowdkit_format(crowdkit_table, table_restore_metadata)
     # Save the restored table to a CSV file with quotes around entries
     st2.to_csv('simplified_restored_binary_rank_example_table.csv', index=False, quoting=csv.QUOTE_ALL)
-"""
