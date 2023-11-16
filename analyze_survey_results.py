@@ -131,7 +131,20 @@ def assess_worker_responses(
     # save results to a file
     results_df.to_csv(f"mmsr_results-{crowdkit_grouping_columns_str}.csv")
     # result = mmsr.fit_predict_score(simplified_table)
-    worker_skills = pd.Series(mmsr.skills_)
+    worker_skills = pd.DataFrame(mmsr.skills_)
+
+    # Create a smaller DataFrame with unique 'workerId' and 'Country' pairs
+    unique_worker_countries = binary_rank_df[['WorkerId', 'Country']].drop_duplicates()
+
+    # Create a mapping from 'workerId' to 'Country' in the smaller DataFrame
+    country_mapping = unique_worker_countries.set_index('WorkerId')['Country']
+
+    # Add the 'Country' column to worker_skills using the mapping
+    worker_skills['Country'] = worker_skills.index.map(country_mapping)
+
+    # rename "skill" Consensus Alignment and "worker" Participant
+    worker_skills.rename(columns={ 'skill': 'Consensus Alignment', 'worker': 'Participant'}, inplace=True)
+
     # save worker skills to a file
     worker_skills.to_csv(f"mmsr_worker_skills-{crowdkit_grouping_columns_str}.csv")
     print(worker_skills)
