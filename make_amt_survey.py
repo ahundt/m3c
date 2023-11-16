@@ -253,21 +253,45 @@ def shuffle_images_and_save(country_df, country_name, output_folder, use_row_see
     shuffled_df.to_csv(shuffled_csv_path, index=False)
     return shuffled_csv_path
 
-def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surveys", output_filename="survey_summary_stats.csv"):
+
+def save_as_csv_and_tex(data, output_folder, output_filename, description):
     """
-    Reads multiple survey CSV files, combines them, calculates summary statistics, and saves them to a file.
+    Save DataFrame as both CSV and LaTeX files.
 
     Parameters:
-    csv_files (list): A list of paths to the survey CSV files.
-    survey_items_csv (str): The path to the survey items CSV file.
+    - data (DataFrame): The DataFrame to be saved.
+    - output_folder (str): The path to the output folder.
+    - output_filename (str): The base name for the output files.
+    - description (str): Description for the saved files.
 
     Returns:
     None
     """
-    # Load the survey items CSV file
-    items = pd.read_csv(survey_items_csv)
+    # Save as CSV
+    csv_file_path = os.path.join(output_folder, f"{output_filename}.csv")
+    data.to_csv(csv_file_path, index=False)  # Avoid saving the DataFrame index
+    print(f'{description} saved as CSV to: {csv_file_path}')
 
-    # Initialize an empty list for the DataFrames
+    # Save as LaTeX
+    tex_file_path = os.path.join(output_folder, f"{output_filename}.tex")
+    data.to_latex(tex_file_path, index=False)
+    print(f'{description} saved as LaTeX to: {tex_file_path}')
+
+def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surveys", output_filename="survey_summary_stats"):
+    """
+    Process survey data, compute summary statistics, and save as CSV and LaTeX files.
+
+    Parameters:
+    - csv_files (list): A list of paths to the survey CSV files.
+    - survey_items_csv (str): The path to the survey items CSV file.
+    - output_folder (str): The path to the output folder.
+    - output_filename (str): The base name for the output files.
+
+    Returns:
+    None
+    """
+    # Load survey items
+    items = pd.read_csv(survey_items_csv)
     df_list = []
 
     # Loop over the CSV files
@@ -280,22 +304,21 @@ def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surv
         # Append the DataFrame to the list
         df_list.append(df)
 
-    # Combine all the DataFrames into one DataFrame
     df = pd.concat(df_list)
-
-    # Calculate the summary statistics
     summary_stats = df.describe()
 
-    # Calculate the counts
+    # Calculate summary statistics
     unique_prompts = df['prompt'].nunique()
     unique_seeds = df['seed'].nunique()
-    unique_models = df.filter(regex='img\d').nunique().max()
+    image_cols = df.filter(regex='img\d')
+    unique_models = image_cols.nunique().max() if not image_cols.empty else 0
     items_per_page = items.shape[0]
     unique_pages = df.shape[0]
     unique_countries = df['Country'].nunique()
 
     # Create a DataFrame with the counts
     counts = pd.DataFrame({
+        'Summary': ['Counts'],
         'Unique Prompts': [unique_prompts],
         'Unique Seeds': [unique_seeds],
         'Unique Models': [unique_models],
@@ -304,26 +327,21 @@ def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surv
         'Unique Countries': [unique_countries]
     })
 
-    # Append the counts to the summary statistics
-    summary_stats = pd.concat([summary_stats, counts])
-
-    # Calculate per country stats
+    # Per-country statistics
     per_country_stats = df.groupby('Country').agg({
         'prompt': 'nunique',
         'seed': 'nunique',
         'Country': 'count'
     }).rename(columns={'prompt': 'Unique Prompts', 'seed': 'Unique Seeds', 'Country': 'Count'})
 
-    # Append per country stats to the summary statistics
-    summary_stats = pd.concat([summary_stats, per_country_stats])
+    # Combine and save summary statistics
+    all_stats = pd.concat([summary_stats, counts, per_country_stats], axis=0)
 
-    summary_stats_file = os.path.join(output_folder, output_filename)
-    # Save the summary statistics to a CSV file
-    summary_stats.to_csv(summary_stats_file)
-    # print the summary stats
-    print(f'Survey Summary Stats:\n{summary_stats}')
-    # print where the stats were saved
-    print(f'Survey Summary Stats saved to: {summary_stats_file}')
+    save_as_csv_and_tex(summary_stats, output_folder, f"{output_filename}_summary_stats", "Summary Stats")
+    save_as_csv_and_tex(counts, output_folder, f"{output_filename}_counts", "Counts")
+    save_as_csv_and_tex(per_country_stats, output_folder, f"{output_filename}_per_country_stats", "Per Country Stats")
+
+
 
 
 def main():
