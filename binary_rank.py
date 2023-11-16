@@ -317,20 +317,6 @@ def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
 
 
 def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural Network Model', response='agg_label', rank_method='max'):
-    """
-    Reconstruct the ranking of the categories according to the specified grouping.
-
-    Parameters:
-        df (pandas.DataFrame): The DataFrame containing the binary rank tasks and responses.
-        group_by (list): The list of columns to group by. The function will calculate the ranking within each group separately.
-        category (str): The name of the column containing the category.
-        response (str): The name of the column containing the response. The response should be either "True", "False", 1, 0, or None, where 1 means that the left category won the comparison, 0 means that the right category won the comparison, and None means that the comparison was not completed or the response was invalid.
-        rank_method (str): The method for assigning the rank. Default is 'max'.
-
-    Returns:
-        pandas.DataFrame: The DataFrame containing the reconstructed ranking of the categories for each group, sorted from highest to lowest rank within each group.
-    """
-
     # Create a copy of the DataFrame
     df = df.copy()
 
@@ -356,25 +342,69 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
     # Count wins for the left and right models, grouped by the specified columns
     left_wins = df[df[response] == 1].groupby(group_by + [left_category_column]).size().reset_index().rename(columns={left_category_column: category, 0: 'wins'})
     right_wins = df[df[response] == 0].groupby(group_by + [right_category_column]).size().reset_index().rename(columns={right_category_column: category, 0: 'wins'})
+    print(f'left_wins: \n{left_wins}')
+    print(f'right_wins: \n{right_wins}')
+    # make a no wins dataframe
 
     # Combine wins for all models, ensuring all models are accounted for
-    wins = pd.concat([left_wins, right_wins], ignore_index=True).groupby(group_by + [category]).sum().reset_index()
+    wins = pd.concat([left_wins, right_wins], join='outer', ignore_index=True).groupby(group_by + [category]).sum().reset_index()
+    print(f'wins: \n{wins}')
+
+    # Create a set of all the models in the data
+    all_models = set(df[left_category_column].unique()).union(set(df[right_category_column].unique()))
+
+    # # Create a set of all the models that have wins in the wins dataframe
+    winning_models = set(wins[category].unique())
+
+    # # Find the difference between the two sets to get the models that have no wins
+    no_winning_models = all_models - winning_models
+    
+    # Subtract the index of the wins dataframe from the all_models index to get the models that have no wins
+    # no_winning_models = all_models.difference(wins.set_index(group_by + [category]).index)
+
+    # Create a no_wins dataframe with the no_winning_models index and a wins value of zero
+    # no_wins = pd.DataFrame({category: list(no_winning_models), 'wins': [0]* len(no_winning_models)}).reset_index()
+
+    # Create a no_wins dataframe with the group_by columns and the no winning models
+    # no_wins = pd.DataFrame(list(itertools.product([df[group_by[0]].unique()[0]], no_winning_models)), columns=group_by + [category])
+    # if group_by:
+    #     # Create a no_wins dataframe with the group_by columns and the no winning models
+    #     no_wins = pd.DataFrame([(df[group_by[0]].unique()[0], model) for model in no_winning_models], columns=group_by + [category])
+    #     # Create a list of DataFrames, one for each model in no_winning_models
+    # else:
+    #     # Create a no_wins dataframe with only the category column
+    #     no_wins = pd.DataFrame(no_winning_models, columns=[category])
+
+    # Create a DataFrame with all models
+    no_wins = pd.DataFrame({category: list(all_models), 'wins': [0]*len(all_models)})
+    if group_by:
+        for col in group_by:
+            no_wins[col] = df[col].unique()[0]
+    # in no_wins drop win rows in the winning_models set
+    no_wins = no_wins[~no_wins[category].isin(winning_models)]
+    # Assign a wins value of zero to the no_wins dataframe
+    no_wins['wins'] = 0
+
+    # drop duplicates in the no_wins dataframe
+    no_wins = no_wins.drop_duplicates()
+
+    # Append the no_wins dataframe to the wins dataframe
+    wins = pd.concat([wins, no_wins], join='outer', ignore_index=True)
+
+    print(f'no_wins: \n{no_wins}')
 
     # Check if the group_by parameter is empty or not
     if group_by:
         # If not empty, calculate the rank within each group
         wins['Rank'] = wins.groupby(group_by)['wins'].rank(method=rank_method, ascending=False)
-        # Sort by the group_by columns and the rank column
-        wins = wins.sort_values(by=group_by + ['Rank'])
     else:
         # If empty, calculate the rank for the whole DataFrame
         wins['Rank'] = wins['wins'].rank(method=rank_method, ascending=False)
-        # Sort by the rank column
-        wins = wins.sort_values(by=['Rank'])
+        
+    # Sort by the group_by columns and the rank column
+    wins = wins.sort_values(by=group_by + ['Rank'])
 
     return wins
-
-
 
 
 if __name__ == "__main__":
@@ -389,10 +419,19 @@ if __name__ == "__main__":
     df = pd.DataFrame(data)
 
     # Current Result:
-    # ,index,wins,Rank
-    # 1,contrastive,3.0,1.0
-    # 2,positive,2.0,2.0
-    # 0,baseline,1.0,3.0
+    # left_wins: 
+    #   Item Type Neural Network Model  wins
+    # 0      Rank             baseline     1
+    # 1      Rank          contrastive     2
+    # right_wins: 
+    #   Item Type Neural Network Model  wins
+    # 0      Rank          contrastive     1
+    # 1      Rank             positive     2
+    # rank_results: 
+    #   Item Type Neural Network Model  wins  Rank
+    # 1      Rank          contrastive     3   1.0
+    # 2      Rank             positive     2   2.0
+    # 0      Rank             baseline     1   3.0
 
     # Expected Result is similar to the Current Result but should have all 4 models.
     # ,Neural Network Model,wins,Rank
@@ -406,6 +445,7 @@ if __name__ == "__main__":
 
     # Print the results
     print(f'rank_results: \n{rank_results}')
+"""
     # Example usage
     data = {
         'Item Title Index': [1, 1, 2, 2, 3, 3],
@@ -503,3 +543,4 @@ if __name__ == "__main__":
     st2 = restore_from_crowdkit_format(crowdkit_table, table_restore_metadata)
     # Save the restored table to a CSV file with quotes around entries
     st2.to_csv('simplified_restored_binary_rank_example_table.csv', index=False, quoting=csv.QUOTE_ALL)
+"""
