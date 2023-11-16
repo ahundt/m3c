@@ -317,6 +317,20 @@ def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
 
 
 def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural Network Model', response='agg_label', rank_method='max'):
+    """
+    Reconstruct the ranking of the categories according to the specified grouping.
+
+    Parameters:
+        df (pandas.DataFrame): The DataFrame containing the binary rank tasks and responses.
+        group_by (list): The list of columns to group by. The function will calculate the ranking within each group separately.
+        category (str): The name of the column containing the category.
+        response (str): The name of the column containing the response. The response should be either "True", "False", 1, 0, or None, where 1 means that the left category won the comparison, 0 means that the right category won the comparison, and None means that the comparison was not completed or the response was invalid.
+        rank_method (str): The method for assigning the rank. Default is 'max'.
+
+    Returns:
+        pandas.DataFrame: The DataFrame containing the reconstructed ranking of the categories for each group, sorted from highest to lowest rank within each group.
+    """
+
     # Create a copy of the DataFrame
     df = df.copy()
 
@@ -344,36 +358,27 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
     right_wins = df[df[response] == 0].groupby(group_by + [right_category_column]).size().reset_index().rename(columns={right_category_column: category, 0: 'wins'})
     print(f'left_wins: \n{left_wins}')
     print(f'right_wins: \n{right_wins}')
-    # make a no wins dataframe
 
-    # Combine wins for all models, ensuring all models are accounted for
+    # Count losses for the left and right models, grouped by the specified columns
+    left_losses = df[df[response] == 0].groupby(group_by + [left_category_column]).size().reset_index().rename(columns={left_category_column: category, 0: 'losses'})
+    right_losses = df[df[response] == 1].groupby(group_by + [right_category_column]).size().reset_index().rename(columns={right_category_column: category, 0: 'losses'})
+    print(f'left_losses: \n{left_losses}')
+    print(f'right_losses: \n{right_losses}')
+
+    # Combine wins and losses for all models, ensuring all models are accounted for
     wins = pd.concat([left_wins, right_wins], join='outer', ignore_index=True).groupby(group_by + [category]).sum().reset_index()
+    losses = pd.concat([left_losses, right_losses], join='outer', ignore_index=True).groupby(group_by + [category]).sum().reset_index()
     print(f'wins: \n{wins}')
+    print(f'losses: \n{losses}')
 
     # Create a set of all the models in the data
     all_models = set(df[left_category_column].unique()).union(set(df[right_category_column].unique()))
 
-    # # Create a set of all the models that have wins in the wins dataframe
+    # Create a set of all the models that have wins in the wins dataframe
     winning_models = set(wins[category].unique())
 
-    # # Find the difference between the two sets to get the models that have no wins
+    # Find the difference between the two sets to get the models that have no wins
     no_winning_models = all_models - winning_models
-    
-    # Subtract the index of the wins dataframe from the all_models index to get the models that have no wins
-    # no_winning_models = all_models.difference(wins.set_index(group_by + [category]).index)
-
-    # Create a no_wins dataframe with the no_winning_models index and a wins value of zero
-    # no_wins = pd.DataFrame({category: list(no_winning_models), 'wins': [0]* len(no_winning_models)}).reset_index()
-
-    # Create a no_wins dataframe with the group_by columns and the no winning models
-    # no_wins = pd.DataFrame(list(itertools.product([df[group_by[0]].unique()[0]], no_winning_models)), columns=group_by + [category])
-    # if group_by:
-    #     # Create a no_wins dataframe with the group_by columns and the no winning models
-    #     no_wins = pd.DataFrame([(df[group_by[0]].unique()[0], model) for model in no_winning_models], columns=group_by + [category])
-    #     # Create a list of DataFrames, one for each model in no_winning_models
-    # else:
-    #     # Create a no_wins dataframe with only the category column
-    #     no_wins = pd.DataFrame(no_winning_models, columns=[category])
 
     # Create a DataFrame with all models
     no_wins = pd.DataFrame({category: list(all_models), 'wins': [0]*len(all_models)})
@@ -393,18 +398,49 @@ def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural
 
     print(f'no_wins: \n{no_wins}')
 
+    # Create a set of all the models that have losses in the losses dataframe
+    losing_models = set(losses[category].unique())
+
+    # Find the difference between the two sets to get the models that have no losses
+    no_losing_models = all_models - losing_models
+
+    # Create a DataFrame with all models
+    no_losses = pd.DataFrame({category: list(all_models), 'losses': [0]*len(all_models)})
+    if group_by:
+        for col in group_by:
+            no_losses[col] = df[col].unique()[0]
+    # in no_losses drop loss rows in the losing_models set
+    no_losses = no_losses[~no_losses[category].isin(losing_models)]
+    # Assign a losses value of zero to the no_losses dataframe
+    no_losses['losses'] = 0
+
+    # drop duplicates in the no_losses dataframe
+    no_losses = no_losses.drop_duplicates()
+
+    # Append the no_losses dataframe to the losses dataframe
+    losses = pd.concat([losses, no_losses], join='outer', ignore_index=True)
+
+    print(f'no_losses: \n{no_losses}')
+
+    # Merge the wins and losses dataframes on the group_by and category columns, fill NaN values with 0
+    results = pd.merge(wins, losses, on=group_by + [category], how='outer').fillna(0)
+
+    # Calculate the difference between the wins and losses values
+    results['diff'] = results['wins'] - results['losses']
+
     # Check if the group_by parameter is empty or not
     if group_by:
-        # If not empty, calculate the rank within each group
-        wins['Rank'] = wins.groupby(group_by)['wins'].rank(method=rank_method, ascending=False)
+        # If not empty, calculate the rank within each group based on the diff column
+        results['Rank'] = results.groupby(group_by)['diff'].rank(method=rank_method, ascending=False)
     else:
-        # If empty, calculate the rank for the whole DataFrame
-        wins['Rank'] = wins['wins'].rank(method=rank_method, ascending=False)
+        # If empty, calculate the rank for the whole DataFrame based on the diff column
+        results['Rank'] = results['diff'].rank(method=rank_method, ascending=False)
         
-    # Sort by the group_by columns and the rank column
-    wins = wins.sort_values(by=group_by + ['Rank'])
+    # Sort by the group_by columns and the diff column in descending order
+    results = results.sort_values(by=group_by + ['diff'], ascending=False)
 
-    return wins
+    return results
+
 
 
 if __name__ == "__main__":
