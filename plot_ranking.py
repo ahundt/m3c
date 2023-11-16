@@ -28,10 +28,30 @@ def scatter_y_data(data, y_column, scatter_range=0.25):
     scattered_data[y_column] += np.linspace(-scatter_range, scatter_range, len(scattered_data))
     return scattered_data
 
-def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None, file_formats=['.pdf','.png'], show_plot=True):
+def strip_plot_rank(data, x='Neural Network Model', y='Rank', hue='Country', filename='plot', size=(8, 6), palette=None, file_formats=['pdf','png'], scatter=0.25, show_plot=False):
+    """
+    Creates a strip plot (like a one axis, multiple category scatter plot) of the given data.
+
+    Parameters:
+        data (DataFrame): The data to plot.
+        x (str, optional): The column in `data` to use for the x-axis. Defaults to 'Neural Network Model'.
+        y (str, optional): The column in `data` to use for the y-axis. Defaults to 'Rank'.
+        hue (str, optional): The column in `data` to use for color encoding. Defaults to 'Country'.
+        filename (str, optional): The name of the output file. Defaults to 'plot'.
+        size (tuple, optional): The size of the plot. Defaults to (8, 6).
+        palette (dict, optional): A mapping from hue levels to matplotlib colors. Defaults to None.
+        file_formats (list, optional): The file formats to save the plot in. Defaults to ['.pdf','.png'].
+        scatter (float, optional): The range to scatter the y-axis data. Defaults to 0.25. Set to None to disable.
+        show_plot (bool, optional): Whether to display the plot. Defaults to False.
+
+    Returns:
+    None
+    """
     plt.figure(figsize=size)
-    
-    sns.stripplot(data=data, x=x, y=y, hue=hue, palette=country_markers, jitter=0.25,
+    data_copy = data.copy()
+    if scatter is not None and scatter:
+        data_copy = scatter_y_data(data_copy, y, scatter_range=scatter)
+    sns.stripplot(data=data_copy, x=x, y=y, hue=hue, palette=palette, jitter=0.25,
                   size=24, edgecolor='black', linewidth=1.75)
     
     plt.xlabel('Neural Network Model', fontsize=14, fontweight='bold')
@@ -39,13 +59,13 @@ def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None,
     plt.title('Rankings by Neural Network Model', fontsize=18, fontweight='bold')
     plt.legend(loc='lower left', bbox_to_anchor=(0, 0), fontsize=10)
     plt.gca().invert_yaxis()
-    plt.yticks(np.arange(1, data[y].max() + 1, 1), fontsize=12)  # Setting y-axis ticks to integers only
+    plt.yticks(np.arange(1, data_copy[y].max() + 1, 1), fontsize=12)  # Setting y-axis ticks to integers only
     plt.xticks(fontsize=12)
     plt.tight_layout()
     
-    for i in range(len(data[x].unique()) - 1):
+    for i in range(len(data_copy[x].unique()) - 1):
         plt.axvline(i + 0.5, color='gray', linestyle='--', linewidth=0.5)
-    for i in range(int(max(data[y].unique()))):
+    for i in range(int(max(data_copy[y].unique()))):
         plt.axhline(i + 0.5, color='gray', linestyle='--', linewidth=0.5)
 
     for format in file_formats:
@@ -81,11 +101,11 @@ def main():
             print("Required columns are missing in the CSV file.")
             return
 
-        data = scatter_y_data(data, 'Rank', scatter_range=0.2)
+        # data = scatter_y_data(data, 'Rank', scatter_range=0.2)
 
         file_name = os.path.splitext(input_filename)[0]
         strip_plot_rank(data, x='Neural Network Model', y='Rank', hue='Country',
-                        filename=file_name, size=(8, 6), file_formats=output_format, show_plot=show_plot)
+                        filename=file_name, size=(8, 6), file_formats=output_format, show_plot=show_plot, palette=country_markers, scatter=0.25)
     except pd.errors.EmptyDataError:
         print("The provided CSV file is empty.")
     except pd.errors.ParserError:

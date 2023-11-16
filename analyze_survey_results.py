@@ -15,6 +15,8 @@ import crowdkit
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import plot_ranking
+import plot_consensus_alignment_skills
 
 
 def check_column_group_for_consistent_values_in_another_column(df, columns_to_group=["HITId"], columns_to_match=["WorkerId"]):
@@ -152,6 +154,9 @@ def assess_worker_responses(
     # save worker skills to a file
     worker_skills.to_csv(f"mmsr_worker_skills-{crowdkit_grouping_columns_str}.csv")
     print(worker_skills)
+
+    # plot the consensus alignment of peception (the underlying algorithm referes to this as "skills")
+    plot_consensus_alignment_skills.swarm_violin_plot(worker_skills, filename=f"consensus_alignment_plot-{crowdkit_grouping_columns_str}", orient='v', size=(10, 6), palette=None)
     # convert the results_df to a dataframe and make the index the task columns
 
     #########################################
@@ -198,6 +203,13 @@ def assess_worker_responses(
     rank_results = binary_rank.reconstruct_ranking(results_df, binary_rank_reconstruction_grouping_columns)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), reconstruct_ranking() rank_results: {rank_results}')
     rank_results.to_csv(f"mmsr_rank_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
+    # save a plot of the model rank results
+    hue = None
+    if 'Country' in binary_rank_reconstruction_grouping_columns:
+        hue = 'Country'
+    if 'Item Title' in binary_rank_reconstruction_grouping_columns:
+        hue = 'Item Title'
+    plot_ranking.strip_plot_rank(rank_results, x='Neural Network Model', y='Rank', hue=hue, filename=f"mmsr_rank_results-{binary_rank_reconstruction_grouping_columns_str}", show_plot=False)
 
     return rank_results, results_df, worker_skills
 

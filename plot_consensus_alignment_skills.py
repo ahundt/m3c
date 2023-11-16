@@ -3,7 +3,28 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import argparse
 
-def swarm_violin_plot(data, x="Consensus Alignment", y="Participant", hue="Country", filename="plot", orient='v', size=(6, 10), xlim=(-3.5, 3.5), ylim=None, hue_order=None, palette=None):
+def swarm_violin_plot(data, x="Consensus Alignment", y="Participant", hue="Country", filename="plot", orient='v', size=(6, 10), xlim=(-3.5, 3.5), ylim=None, hue_order=None, palette=None, show=False):
+    """
+    Creates a combined swarm and violin plot of the given data.
+
+    Parameters:
+        data (DataFrame): The data to plot.
+        x (str, optional): The column in `data` to use for the x-axis. Defaults to 'Consensus Alignment'.
+        y (str, optional): The column in `data` to use for the y-axis. Defaults to 'Participant'.
+        hue (str, optional): The column in `data` to use for color encoding. Defaults to 'Country'.
+        filename (str, optional): The name of the output file. Defaults to 'plot'.
+        orient (str, optional): The orientation of the plot ('v' for vertical, 'h' for horizontal). Defaults to 'v'.
+        size (tuple, optional): The size of the plot. Defaults to (6, 10).
+        xlim (tuple, optional): The limits for the x-axis. Defaults to (-3.5, 3.5).
+        ylim (tuple, optional): The limits for the y-axis. Defaults to None.
+        hue_order (list, optional): The order to plot the hue levels. Defaults to None.
+        palette (list, optional): A list of colors to use for the hue levels. Defaults to None.
+        show (bool, optional): Whether to display the plot. Defaults to False.
+
+    Returns:
+        fig (Figure): The created matplotlib Figure object.
+        ax (Axes): The created matplotlib Axes object.
+    """
     fig, ax = plt.subplots(figsize=size)
 
     ax.set_xlim(xlim)
@@ -41,6 +62,9 @@ def swarm_violin_plot(data, x="Consensus Alignment", y="Participant", hue="Count
 
     fig.savefig(f"{filename}.png", bbox_inches="tight")
     fig.savefig(f"{filename}.pdf", bbox_inches="tight")
+
+    if show:
+        plt.show()
 
     return fig, ax
 
