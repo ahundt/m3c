@@ -253,12 +253,85 @@ def shuffle_images_and_save(country_df, country_name, output_folder, use_row_see
     shuffled_df.to_csv(shuffled_csv_path, index=False)
     return shuffled_csv_path
 
+def survey_summary_stats(csv_files, survey_items_csv, output_folder="output_surveys", output_filename="survey_summary_stats.csv"):
+    """
+    Reads multiple survey CSV files, combines them, calculates summary statistics, and saves them to a file.
+
+    Parameters:
+    csv_files (list): A list of paths to the survey CSV files.
+    survey_items_csv (str): The path to the survey items CSV file.
+
+    Returns:
+    None
+    """
+    # Load the survey items CSV file
+    items = pd.read_csv(survey_items_csv)
+
+    # Initialize an empty list for the DataFrames
+    df_list = []
+
+    # Loop over the CSV files
+    for csv_file in csv_files:
+        # Read the CSV file into a DataFrame
+        df = pd.read_csv(csv_file)
+
+        # Add a Country column from the filename
+        df['Country'] = get_country_name(csv_file)
+        # Append the DataFrame to the list
+        df_list.append(df)
+
+    # Combine all the DataFrames into one DataFrame
+    df = pd.concat(df_list)
+
+    # Calculate the summary statistics
+    summary_stats = df.describe()
+
+    # Calculate the counts
+    unique_prompts = df['prompt'].nunique()
+    unique_seeds = df['seed'].nunique()
+    unique_models = df.filter(regex='img\d').nunique().max()
+    items_per_page = items.shape[0]
+    unique_pages = df.shape[0]
+    unique_countries = df['Country'].nunique()
+
+    # Create a DataFrame with the counts
+    counts = pd.DataFrame({
+        'Unique Prompts': [unique_prompts],
+        'Unique Seeds': [unique_seeds],
+        'Unique Models': [unique_models],
+        'Items per Page': [items_per_page],
+        'Unique Pages': [unique_pages],
+        'Unique Countries': [unique_countries]
+    })
+
+    # Append the counts to the summary statistics
+    summary_stats = pd.concat([summary_stats, counts])
+
+    # Calculate per country stats
+    per_country_stats = df.groupby('Country').agg({
+        'prompt': 'nunique',
+        'seed': 'nunique',
+        'Country': 'count'
+    }).rename(columns={'prompt': 'Unique Prompts', 'seed': 'Unique Seeds', 'Country': 'Count'})
+
+    # Append per country stats to the summary statistics
+    summary_stats = pd.concat([summary_stats, per_country_stats])
+
+    summary_stats_file = os.path.join(output_folder, output_filename)
+    # Save the summary statistics to a CSV file
+    summary_stats.to_csv(summary_stats_file)
+    # print the summary stats
+    print(f'Survey Summary Stats:\n{summary_stats}')
+    # print where the stats were saved
+    print(f'Survey Summary Stats saved to: {summary_stats_file}')
+
 
 def main():
     args = parse_args()
 
-    # Load items CSV
-    items_df = pd.read_csv(args["items"])
+    # list of survey html and csv files
+    html_files = []
+    csv_files = []
 
     # Process surveys for each country
     for country_csv in tqdm(find_csv_files(args["directory"]), desc="Processing Countries"):
@@ -276,6 +349,8 @@ def main():
             consent_title=args["consent_title"],
             consent_text=args["consent_text"]
         )
+        html_files.append(survey_html_path)
+        csv_files.append(survey_csv_path)
 
         # Print paths to generated files
         print(f"Generated HTML file: {survey_html_path}")
@@ -285,6 +360,9 @@ def main():
         country_df = pd.read_csv(survey_csv_path)
         shuffled_survey_csv_path = shuffle_images_and_save(country_df, get_country_name(country_csv), args["output_folder"])
         print(f"Generated shuffled CSV file: {shuffled_survey_csv_path}")
+
+    # Get the summary stats for all the surveys and save them to a file
+    survey_summary_stats(csv_files, args["items"], args["output_folder"])
 
 if __name__ == "__main__":
     main()
