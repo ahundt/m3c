@@ -28,7 +28,7 @@ def scatter_y_data(data, y_column, scatter_range=0.25):
     scattered_data[y_column] += np.linspace(-scatter_range, scatter_range, len(scattered_data))
     return scattered_data
 
-def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None, file_format='png', show_plot=True):
+def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None, file_formats=['.pdf','.png'], show_plot=True):
     plt.figure(figsize=size)
     
     sns.stripplot(data=data, x=x, y=y, hue=hue, palette=country_markers, jitter=0.25,
@@ -48,8 +48,9 @@ def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None,
     for i in range(int(max(data[y].unique()))):
         plt.axhline(i + 0.5, color='gray', linestyle='--', linewidth=0.5)
 
-    output_filename_png = f'{filename}.{file_format}'
-    plt.savefig(output_filename_png, format=file_format)
+    for format in file_formats:
+        output_filename = f'{filename}.{format}'
+        plt.savefig(output_filename, format=format)
     
     if show_plot:
         plt.show()
@@ -58,7 +59,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Plot rankings using strip plot')
     parser.add_argument('-i', '--input', type=str, default='mmsr_rank_results-Item-Title-Country.csv',
                         help='Input CSV filename')
-    parser.add_argument('-f', '--format', type=str, default='png',
+    parser.add_argument('-f', '--format', type=str, default=['pdf','png'],
                         help='Output file format')
     parser.add_argument('-s', '--no-show', dest='show', action='store_false', help='Do not display the plot')
     return parser.parse_args()
@@ -84,7 +85,7 @@ def main():
 
         file_name = os.path.splitext(input_filename)[0]
         strip_plot_rank(data, x='Neural Network Model', y='Rank', hue='Country',
-                        filename=file_name, size=(8, 6), file_format=output_format, show_plot=show_plot)
+                        filename=file_name, size=(8, 6), file_formats=output_format, show_plot=show_plot)
     except pd.errors.EmptyDataError:
         print("The provided CSV file is empty.")
     except pd.errors.ParserError:
