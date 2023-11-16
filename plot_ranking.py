@@ -16,23 +16,29 @@ def swarm_plot_rank(data, x="Neural Network Model", y="Rank", hue="Country", fil
     }
 
     # Create swarm plot with country-based colors and shapes
-    swarm = sns.swarmplot(data=data, x=x, y=y, hue=hue, hue_order=hue_order, palette=[color for color, _ in country_markers.values()], marker='o')
+    swarm = sns.swarmplot(data=data, x=x, y=y, hue=hue, dodge=True, palette=[color for color, _ in country_markers.values()], size=3, marker='o')
     legend_handles = []
     for country, (color, marker) in country_markers.items():
-        legend_handles.append(plt.Line2D([0], [0], marker=marker, color='w', markerfacecolor=color, label=country))  # Add markers for legend
+        legend_handles.append(plt.Line2D([0], [0], marker=marker, color='w', markerfacecolor=color, markersize=5, label=country))  # Add markers for legend
 
     handles, labels = swarm.get_legend_handles_labels()
     handles.extend(legend_handles)
-    ax.legend(handles=handles, labels=labels, loc="upper right", title=hue)
+    ax.legend(handles=handles, labels=labels, loc="lower right", title=hue)
 
-    ax.set_xlabel(x)
-    ax.set_ylabel(y)
-    ax.set_title("Rank")
+    ax.set_xlabel(x, fontsize=14, fontweight='bold', labelpad=10)
+    ax.set_ylabel(y, fontsize=14, fontweight='bold', labelpad=10)
+    ax.set_title("Rank", fontsize=16, fontweight='bold')
 
-    fig.savefig(f"{filename}.png", bbox_inches="tight")
-    fig.savefig(f"{filename}.pdf", bbox_inches="tight")
+    # Reverse the Y-axis to show higher rank at the top
+    ax.invert_yaxis()
 
-    return fig, ax
+    # Round Y-axis values to whole numbers
+    ax.yaxis.set_major_formatter('{:.0f}'.format)
+
+    fig.savefig(f"{filename}_swarm.png", bbox_inches="tight")
+    fig.savefig(f"{filename}_swarm.pdf", bbox_inches="tight")
+
+    plt.show()
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -46,7 +52,7 @@ def main():
     # Improving color selection and visual appearance
     sns.set(style="whitegrid")  # Set seaborn style to improve appearance
 
-    swarm_plot_rank(data, filename="rank_swarm_plot", hue_order=["China", "India", "Mexico", "Korea", "Nigeria"])
+    swarm_plot_rank(data, filename=args.input.split('.')[0], hue_order=["China", "India", "Mexico", "Korea", "Nigeria"])
     print("Rank swarm plot saved.")
 
 if __name__ == "__main__":
