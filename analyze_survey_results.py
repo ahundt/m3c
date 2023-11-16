@@ -130,6 +130,10 @@ def assess_worker_responses(
     print(results_df)
     # save results to a file
     results_df.to_csv(f"mmsr_results-{crowdkit_grouping_columns_str}.csv")
+
+    #########################################
+    # Extract the worker consensus alignment (aka "skills") (this can be visualized with plot_consensus_alignment_skills.py)
+
     # result = mmsr.fit_predict_score(simplified_table)
     worker_skills = pd.DataFrame(mmsr.skills_)
 
@@ -150,6 +154,7 @@ def assess_worker_responses(
     print(worker_skills)
     # convert the results_df to a dataframe and make the index the task columns
 
+    #########################################
     # visualize the mmsr observation matrix
     observation_matrix = mmsr._observation_matrix
     # Visualizing the Observation Matrix as a Heatmap
@@ -165,6 +170,7 @@ def assess_worker_responses(
     plt.savefig(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.png")
     plt.savefig(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.pdf")
 
+    #########################################
     # visualize the mmsr covariance matrix
     covariance_matrix = mmsr._covariation_matrix
     # Visualizing the Covariance Matrix as a Heatmap
@@ -180,6 +186,8 @@ def assess_worker_responses(
     plt.savefig(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.png")
     plt.savefig(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.pdf")
     
+    #########################################
+    # calculate the mmsr rank results
     results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df: {results_df}')
     results_df.to_csv(f"mmsr_results_restored-{binary_rank_reconstruction_grouping_columns_str}.csv")
