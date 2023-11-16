@@ -13,16 +13,21 @@ def scatter_y_data(data, y_column, scatter_range=0.2):
 def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None, file_format='png', show_plot=True):
     plt.figure(figsize=size)
     
-    sns.stripplot(data=data, x=x, y=y, hue=hue, palette=palette, jitter=0.2, size=12, edgecolor='black', marker='o')
+    sns.stripplot(data=data, x=x, y=y, hue=hue, palette=palette, jitter=0.2, size=24, edgecolor='black', linewidth=1.5, marker='o')
     
-    plt.xlabel('Neural Network Model')
-    plt.ylabel('Rank')
-    plt.title('Rankings by Neural Network Model')
-    plt.legend(loc='upper right', bbox_to_anchor=(1.25, 1))  # Move legend to top right
+    plt.xlabel('Neural Network Model', fontsize=14, fontweight='bold')
+    plt.ylabel('Rank', fontsize=14, fontweight='bold')
+    plt.title('Rankings by Neural Network Model', fontsize=18, fontweight='bold')
+    plt.legend(loc='lower left', bbox_to_anchor=(0, 0), fontsize=10)  # Move legend to bottom left inside the chart
     plt.gca().invert_yaxis()  # Reverse the Y-axis
-    plt.yticks(range(int(data[y].min()), int(data[y].max()) + 1))  # Show whole number ranks
+    plt.yticks(fontsize=12)
+    plt.xticks(fontsize=12)
     plt.tight_layout()
     
+    # Adding separator lines between each neural network model
+    for i in range(len(data[x].unique()) - 1):
+        plt.axvline(i + 0.5, color='gray', linestyle='--', linewidth=1)
+
     output_filename_png = f'{filename}.png'
     plt.savefig(output_filename_png, format='png')
     
