@@ -44,7 +44,9 @@ def strip_plot_rank(data, x, y, hue, filename='plot', size=(8, 6), palette=None,
     plt.tight_layout()
     
     for i in range(len(data[x].unique()) - 1):
-        plt.axvline(i + 0.5, color='gray', linestyle='--', linewidth=1)
+        plt.axvline(i + 0.5, color='gray', linestyle='--', linewidth=0.5)
+    for i in range(int(max(data[y].unique()))):
+        plt.axhline(i + 0.5, color='gray', linestyle='--', linewidth=0.5)
 
     output_filename_png = f'{filename}.{file_format}'
     plt.savefig(output_filename_png, format=file_format)
