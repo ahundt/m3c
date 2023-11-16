@@ -14,23 +14,23 @@ def swarm_violin_plot(data, x="Consensus Alignment", y="Participant", hue="Count
         if ylim is not None:
             ax.set_ylim(ylim)
 
-    # Define colors based on country flags
-    country_colors = {
-        'China': '#DE2910',  # China's flag color
-        'India': '#FF9933',  # India's flag color
-        'Mexico': '#006847',  # Mexico's flag color
-        'Korea': '#003478',  # Korea's flag color
-        'Nigeria': '#008751'  # Nigeria's flag color
+    # Define colors and shapes based on country flags for color-blind friendliness
+    country_markers = {
+        'China': ('#DE2910', 'o'),  # China's flag color and circle marker
+        'India': ('#FF9933', 's'),  # India's flag color and square marker
+        'Mexico': ('#006847', '^'),  # Mexico's flag color and triangle-up marker
+        'Korea': ('#003478', 'D'),  # Korea's flag color and diamond marker
+        'Nigeria': ('#008751', 'P')  # Nigeria's flag color and plus marker
     }
 
     # Create violin plot with distinct colors
     sns.violinplot(data=data, y=x, ax=ax, fill=True, linewidth=1, cut=0, hue_order=hue_order, palette=palette)
     legend_handles = []
-    for country, color in country_colors.items():
-        legend_handles.append(plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color, label=country))  # Add markers for legend
+    for country, (color, marker) in country_markers.items():
+        legend_handles.append(plt.Line2D([0], [0], marker=marker, color='w', markerfacecolor=color, label=country))  # Add markers for legend
 
-    # Create swarm plot with country-based colors
-    swarm = sns.swarmplot(data=data, y=x, ax=ax, size=15, edgecolor="black", hue=hue, hue_order=hue_order, palette=country_colors)
+    # Create swarm plot with country-based colors and shapes
+    swarm = sns.swarmplot(data=data, y=x, ax=ax, size=15, edgecolor="black", hue=hue, hue_order=hue_order, palette=[color for color, _ in country_markers.values()], marker='o')
     handles, labels = swarm.get_legend_handles_labels()
     handles.extend(legend_handles)
     ax.legend(handles=handles, labels=labels, loc="upper right", title=hue)
@@ -56,6 +56,7 @@ def main():
 
     # Improving color selection and visual appearance
     custom_palette = sns.color_palette("Set2")  # Use a predefined color palette
+    # Improving color selection and visual appearance
     sns.set(style="whitegrid")  # Set seaborn style to improve appearance
 
     swarm_violin_plot(data, filename="consensus_alignment_plot", orient='v', size=(10, 6), palette=custom_palette)
