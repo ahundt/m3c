@@ -28,7 +28,7 @@ def scatter_y_data(data, y_column, scatter_range=0.25):
     scattered_data[y_column] += np.linspace(-scatter_range, scatter_range, len(scattered_data))
     return scattered_data
 
-def strip_plot_rank(data, x='Neural Network Model', y='Rank', hue='Country', filename='plot', size=(8, 6), palette=None, file_formats=['pdf','png'], scatter=0.25, show_plot=False):
+def strip_plot_rank(data, x='Neural Network Model', y='Rank', hue='Country', filename='plot', size=(8, 6), palette=None, file_formats=['pdf','png'], scatter=0.25, show_plot=False, title='Rankings by Neural Network Model'):
     """
     Creates a strip plot (like a one axis, multiple category scatter plot) of the given data.
 
@@ -56,7 +56,7 @@ def strip_plot_rank(data, x='Neural Network Model', y='Rank', hue='Country', fil
     
     plt.xlabel('Neural Network Model', fontsize=14, fontweight='bold')
     plt.ylabel('Rank', fontsize=14, fontweight='bold')
-    plt.title('Rankings by Neural Network Model', fontsize=18, fontweight='bold')
+    plt.title(title, fontsize=18, fontweight='bold')
     plt.legend(loc='lower left', bbox_to_anchor=(0, 0), fontsize=10)
     plt.gca().invert_yaxis()
     plt.yticks(np.arange(1, data_copy[y].max() + 1, 1), fontsize=12)  # Setting y-axis ticks to integers only
