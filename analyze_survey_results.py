@@ -217,7 +217,10 @@ def assess_worker_responses(
     if 'Item Title' in binary_rank_reconstruction_grouping_columns:
         hue = 'Item Title'
     
-    title = f"Model Rankings by {', '.join(binary_rank_reconstruction_grouping_columns)}"
+    if binary_rank_reconstruction_grouping_columns:
+        title = f"Model Rankings by {', '.join(binary_rank_reconstruction_grouping_columns)}"
+    else:
+        title = f"Model Rankings Across All Responses"
     plot_ranking.strip_plot_rank(rank_results, x='Neural Network Model', y='Rank', hue=hue, filename=f"mmsr_rank_results-{binary_rank_reconstruction_grouping_columns_str}", show_plot=False, title=title)
 
     return rank_results, results_df, worker_skills
