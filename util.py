@@ -9,8 +9,8 @@ import requests # Import the requests module
 import tqdm
 import datetime
 import glob
-import util
 import shutil
+import re
 
 def find_csv_files(directory):
     """
