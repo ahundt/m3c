@@ -110,11 +110,12 @@ def assess_worker_responses(
     # join binary_rank_reconstruction_grouping_columns with a dash
     binary_rank_reconstruction_grouping_columns_str = '-'.join(binary_rank_reconstruction_grouping_columns).replace(' ', '-')
 
+    # TODO(ahundt) consider adding a pairwise comparison algorithm like Noisy BradleyTerry https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.pairwise.noisy_bt.NoisyBradleyTerry/ https://github.com/Toloka/crowd-kit/blob/v1.2.1/examples/Readability-Pairwise.ipynb
+
+    from crowdkit.aggregation import MMSR
     if seed is not None:
         np.random.seed(seed)
-    # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
-    from crowdkit.aggregation import MMSR
     mmsr = MMSR(
         n_iter=10000,
         tol=1e-10,
