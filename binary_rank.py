@@ -259,11 +259,14 @@ def convert_table_to_crowdkit_format(
     # get the reformatting variables
     task_columns = '|'.join(task_columns)
     # make a map from the task column to integer ids
-    task_to_id = {task: i for i, task in enumerate(st2['task'].unique())}
+    task_list = st2['task'].unique()
+    task_to_id = {task: i for i, task in enumerate(task_list)}
     # make a map from the worker column to integer ids
-    worker_to_id = {worker: i for i, worker in enumerate(st2['worker'].unique())}
+    worker_list = st2['worker'].unique()
+    worker_to_id = {worker: i for i, worker in enumerate(worker_list)}
     # make a map from the label column to integer ids
-    label_to_id = {label: i for i, label in enumerate(st2['label'].unique())}
+    label_list = st2['label'].unique()
+    label_to_id = {label: i for i, label in enumerate(label_list)}
 
     table_restore_metadata = {
         'column_titles': column_titles,
@@ -274,7 +277,10 @@ def convert_table_to_crowdkit_format(
         'separator': separator,
         'n_tasks': len(task_to_id),
         'n_workers': len(worker_to_id),
-        'n_labels': len(label_to_id)
+        'n_labels': len(label_to_id),
+        'workers_list': worker_list,
+        'labels_list': label_list,
+        'tasks_list': task_list
     }
 
     # return the simplified int table, the maps, and the column names

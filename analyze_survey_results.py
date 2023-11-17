@@ -169,10 +169,13 @@ def assess_worker_responses(
     # Visualizing the Observation Matrix as a Heatmap
     plt.figure(figsize=(8, 6))
     sns.heatmap(observation_matrix, cmap='viridis', fmt='.2f')
-    # sns.heatmap(observation_matrix, cmap='viridis', annot=True, fmt='.2f')
+    # sns.heatmap(observation_matrix, cmap='viridis', fmt='.2f', xticklabels=table_restore_metadata['tasks_list'])
     plt.title('Observation Matrix Heatmap')
-    plt.xlabel('Variables')
-    plt.ylabel('Observations')
+    plt.ylabel('Participant ID')
+    # Make the Y label include the Model and binary_rank_reconstruction_grouping_columns combinations in human readable form
+    label = f"Rank Comparisons Across Combos of {', '.join(['Model'] + binary_rank_reconstruction_grouping_columns)}"
+    plt.xlabel(label)
+
     # plt.show()
     # save the observation matrix and plot to a file
     np.savetxt(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.csv", observation_matrix, delimiter=",")
@@ -186,9 +189,9 @@ def assess_worker_responses(
     plt.figure(figsize=(8, 6))
     sns.heatmap(covariance_matrix, cmap='coolwarm', fmt='.2f')
     # sns.heatmap(covariance_matrix, cmap='coolwarm', annot=True, fmt='.2f')
-    plt.title('Covariance Matrix Heatmap')
-    plt.xlabel('Variables')
-    plt.ylabel('Variables')
+    plt.title('Participant MMSR Covariance Matrix Heatmap')
+    plt.xlabel('Participant ID')
+    plt.ylabel('Participant ID')
     # plt.show()
     # save the covariance matrix and plot to a file
     np.savetxt(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.csv", covariance_matrix, delimiter=",")
