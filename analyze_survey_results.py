@@ -627,7 +627,7 @@ def main():
     """
     # Command Line Parameter Parsing
     parser = argparse.ArgumentParser(description="Survey Data Analysis")
-    parser.add_argument("--response_results", type=str, default="m3c_cvpr_results_11_14", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
+    parser.add_argument("--response_results", type=str, default="m3c_cvpr_results_11_16", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
     # parser.add_argument("--response_results", type=str, default="Batch_393773_batch_results.csv", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
     parser.add_argument("--survey_items_file", type=str, default="human_survey_items.csv", help="Path to the human_survey_items.csv file")
     parser.add_argument("--network_models", type=str, nargs='+', default=["baseline", "contrastive", "genericSD", "positive"], help="List of neural network model names")
