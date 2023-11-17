@@ -870,11 +870,8 @@ def main():
 
     if args.remap_model_names:
         # Rename the model names throughout the table, e.g. "contrastive" -> "SCoFT+MPC". 
-        # Note substrings will be updated too, such as folder names in the filename paths.
+        # Note substrings will not be updated, such as folder names in the filename paths.
         combined_df, network_models = rename_throughout_table(combined_df, network_models, args.remap_model_names, rename_substring=False)
-
-    # save temp results to a file
-    combined_df.to_csv("TEMP-process_survey_results_csv_output.csv")
 
     aggregated_df = statistical_analysis(combined_df, network_models, args.random_seed)
 
