@@ -12,6 +12,7 @@ import os
 import re
 import binary_rank
 import crowdkit
+from crowdkit.aggregation import MMSR, NoisyBradleyTerry
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -82,6 +83,7 @@ def assess_worker_responses(
         label_column="Binary Rank Response Left Image is Greater",
         crowdkit_grouping_columns = ['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country'],
         binary_rank_reconstruction_grouping_columns=['Item Title', 'Country'],
+        crowdkit_model='mmsr',
         seed=None,  
     ):
     """
@@ -112,7 +114,6 @@ def assess_worker_responses(
 
     # TODO(ahundt) consider adding a pairwise comparison algorithm like Noisy BradleyTerry https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.pairwise.noisy_bt.NoisyBradleyTerry/ https://github.com/Toloka/crowd-kit/blob/v1.2.1/examples/Readability-Pairwise.ipynb
 
-    from crowdkit.aggregation import MMSR
     if seed is not None:
         np.random.seed(seed)
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
@@ -135,7 +136,7 @@ def assess_worker_responses(
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), Results:')
     print(results_df)
     # save results to a file
-    results_df.to_csv(f"mmsr_results-{crowdkit_grouping_columns_str}.csv")
+    results_df.to_csv(f"{crowdkit_model}_results-{crowdkit_grouping_columns_str}.csv")
 
     #########################################
     # Extract the worker consensus alignment (aka "skills") (this can be visualized with plot_consensus_alignment_skills.py)
@@ -156,7 +157,7 @@ def assess_worker_responses(
     worker_skills.rename(columns={ 'skill': 'Consensus Alignment', 'worker': 'Participant'}, inplace=True)
 
     # save worker skills to a file
-    worker_skills.to_csv(f"mmsr_worker_skills-{crowdkit_grouping_columns_str}.csv")
+    worker_skills.to_csv(f"{crowdkit_model}_worker_skills-{crowdkit_grouping_columns_str}.csv")
     print(worker_skills)
 
     # plot the consensus alignment of peception (the underlying algorithm referes to this as "skills")
@@ -178,9 +179,9 @@ def assess_worker_responses(
 
     # plt.show()
     # save the observation matrix and plot to a file
-    np.savetxt(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.csv", observation_matrix, delimiter=",")
-    plt.savefig(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.png")
-    plt.savefig(f"mmsr_observation_matrix-{crowdkit_grouping_columns_str}.pdf")
+    np.savetxt(f"{crowdkit_model}_observation_matrix-{crowdkit_grouping_columns_str}.csv", observation_matrix, delimiter=",")
+    plt.savefig(f"{crowdkit_model}_observation_matrix-{crowdkit_grouping_columns_str}.png")
+    plt.savefig(f"{crowdkit_model}_observation_matrix-{crowdkit_grouping_columns_str}.pdf")
 
     #########################################
     # visualize the mmsr covariance matrix
@@ -194,22 +195,22 @@ def assess_worker_responses(
     plt.ylabel('Participant ID')
     # plt.show()
     # save the covariance matrix and plot to a file
-    np.savetxt(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.csv", covariance_matrix, delimiter=",")
-    plt.savefig(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.png")
-    plt.savefig(f"mmsr_covariance_matrix-{crowdkit_grouping_columns_str}.pdf")
+    np.savetxt(f"{crowdkit_model}_covariance_matrix-{crowdkit_grouping_columns_str}.csv", covariance_matrix, delimiter=",")
+    plt.savefig(f"{crowdkit_model}_covariance_matrix-{crowdkit_grouping_columns_str}.png")
+    plt.savefig(f"{crowdkit_model}_covariance_matrix-{crowdkit_grouping_columns_str}.pdf")
     
     #########################################
     # calculate the mmsr rank results
     results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df: {results_df}')
-    results_df.to_csv(f"mmsr_results_restored-{binary_rank_reconstruction_grouping_columns_str}.csv")
+    results_df.to_csv(f"{crowdkit_model}_results_restored-{binary_rank_reconstruction_grouping_columns_str}.csv")
     # print the columns of results_df
     print(f'results_df.columns: {results_df.columns}')
     # print results_df
     print(f'results_df:\n{results_df}')
     rank_results = binary_rank.reconstruct_ranking(results_df, binary_rank_reconstruction_grouping_columns)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), reconstruct_ranking() rank_results: {rank_results}')
-    rank_results.to_csv(f"mmsr_rank_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
+    rank_results.to_csv(f"{crowdkit_model}_rank_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
     # save a plot of the model rank results
     hue = None
     if 'Country' in binary_rank_reconstruction_grouping_columns:
@@ -221,12 +222,12 @@ def assess_worker_responses(
         title = f"Model Rankings by {', '.join(binary_rank_reconstruction_grouping_columns)}"
     else:
         title = f"Model Rankings Across All Responses"
-    plot_ranking.strip_plot_rank(rank_results, x='Neural Network Model', y='Rank', hue=hue, filename=f"mmsr_rank_results-{binary_rank_reconstruction_grouping_columns_str}", show_plot=False, title=title)
+    plot_ranking.strip_plot_rank(rank_results, x='Neural Network Model', y='Rank', hue=hue, filename=f"{crowdkit_model}_rank_results-{binary_rank_reconstruction_grouping_columns_str}", show_plot=False, title=title)
 
     return rank_results, results_df, worker_skills
 
 
-def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseline','genericSD']):
+def plot_binary_comparisons(df, network_models):
     """ 
     Create grouped bar charts comparing the rankings amongst methods head to head 
 
@@ -252,10 +253,10 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
 
 
     # Only include the key comparisons, such as contrastive with all and baseline with only genericSD
-    for i in range(len(models_ordered)):
+    for i in range(len(network_models)):
         for j in range(i-1, -1, -1):
-            df_grouped = df_grouped[~((df_grouped["Left Neural Network Model"] == models_ordered[i]) \
-                                    & (df_grouped["Right Neural Network Model"] == models_ordered[j]))]
+            df_grouped = df_grouped[~((df_grouped["Left Neural Network Model"] == network_models[i]) \
+                                    & (df_grouped["Right Neural Network Model"] == network_models[j]))]
 
     countries = df_grouped['Country'].unique()
     item_titles = df_grouped['Item Title'].unique()
@@ -267,8 +268,8 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
                 x="Left Neural Network Model", 
                 y='Binary Rank Response Left Image is Greater', 
                 hue="Right Neural Network Model",
-                order=models_ordered[:-1],
-                hue_order=models_ordered[1:])
+                order=network_models[:-1],
+                hue_order=network_models[1:])
         ax.set_ylim(0, 100)
         ax.set_xlabel(None)
         ax.set_ylabel(None)
@@ -313,7 +314,7 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
     # plt.show()
 
 
-def plot_violins(df, models_ordered=['contrastive','positive','baseline','genericSD']):
+def plot_violins(df, network_models):
     
     # df = df[df['Item Title'] == 'Offensiveness']
     # from plot_ranking import strip_plot_rank
@@ -335,8 +336,8 @@ def plot_violins(df, models_ordered=['contrastive','positive','baseline','generi
         #     "genericSD":"Stable Diffusion",
         #     "contrastive":"Self-Contrastive"}, axis='index', errors="raise")
 
-        df_pivot = df_pivot[models_ordered]
-        for mod in models_ordered:
+        df_pivot = df_pivot[network_models]
+        for mod in network_models:
             df_pivot[mod] /= df_pivot[mod].sum()
             df_pivot[mod] *= 100
 
@@ -376,7 +377,7 @@ def plot_violins(df, models_ordered=['contrastive','positive','baseline','generi
             # saturation=0.75,
             inner=None,
             # inner='quartile',
-            order=models_ordered,
+            order=network_models,
             fill=False
         )
     df_median = df.groupby(['Neural Network Model'])['Response'].median().reset_index()
@@ -433,7 +434,7 @@ def plot_violins(df, models_ordered=['contrastive','positive','baseline','generi
         # saturation=0.75,
         inner=None,
         # inner='quartile',
-        order=models_ordered,
+        order=network_models,
         # fill=False
     )
     df_median = df.groupby(['Neural Network Model'])['Response'].median().reset_index()
@@ -534,7 +535,7 @@ def statistical_analysis(df, network_models, seed=None):
     # Save the aggregated DataFrame to a CSV file
     aggregated_df_per_country.to_csv("aggregated_statistical_output_by_country.csv", index=False)
 
-    plot_violins(df)
+    plot_violins(df, network_models)
 
     ####################
     # Binary Rank Stats
@@ -551,7 +552,7 @@ def statistical_analysis(df, network_models, seed=None):
         raise ValueError(f'WARNING: CREATING THE BINARY TABLE CHANGED THE NUMBER OF WORKERS, THERE IS A BUG!'
                          f'binary_rank_df["WorkerId"].unique(): {binary_rank_df["WorkerId"].unique()} != df["WorkerId"].unique(): {df["WorkerId"].unique()}')
 
-    plot_binary_comparisons(binary_rank_df.copy())
+    plot_binary_comparisons(binary_rank_df.copy(), network_models)
 
     # ranking per country and per question
     rank_results_ci, results_df_ci, worker_skills_ci = assess_worker_responses(binary_rank_df, seed=seed)
@@ -650,7 +651,7 @@ def add_survey_item_data_to_dataframe(df, human_survey_items, network_models):
     return df
 
 
-def get_response_rows_per_image(df, network_models):
+def get_response_rows_per_image(df):
     """
     Modify a DataFrame by adding new columns based on image-related columns.
 
@@ -750,10 +751,44 @@ def process_survey_results_csv(csv_file, survey_items_file, network_models):
     # by matching image-related columns with the "Neural Network Model" column
     # and the "promptrowX-imgY-rating" columns. 
     # The "Response" column is the rating for part of an item, such as an individual image's ranks.
-    df = get_response_rows_per_image(df, network_models)
+    df = get_response_rows_per_image(df)
 
+    # validate the processing and data organization for expected consistency
     check_column_group_for_consistent_values_in_another_column(df, columns_to_group=['Source CSV File','Source CSV Row Index'], columns_to_match=["WorkerId"])
+    
     return df
+
+
+def rename_throughout_table(df, network_models=None, remap_dict=None, rename_substring=False):
+    """
+    Renames column titles, row titles, and values in a DataFrame based on a provided mapping dictionary.
+
+    Parameters:
+    df (pandas.DataFrame): The DataFrame to be renamed.
+    remap_dict (dict): A dictionary mapping the original names to the new names.
+    rename_substring (bool): If True, replace substrings that match the keys in remap_dict with the corresponding values.
+
+    Returns:
+    pandas.DataFrame: The renamed DataFrame.
+    """
+    if remap_dict is not None:
+        # Remap column titles
+        df.rename(columns=remap_dict, inplace=True)
+
+        # Remap row titles
+        df.rename(index=remap_dict, inplace=True)
+
+        # Remap values
+        if rename_substring:
+            df.replace(remap_dict, inplace=True, regex=True)
+        else:
+            df.replace(remap_dict, inplace=True)
+
+        if network_models is not None:
+            # rename the network models list using the remap_dict
+            network_models = [remap_dict.get(model, model) for model in network_models]
+
+    return df, network_models
 
 
 def test():
@@ -775,7 +810,7 @@ def test():
 
     df = pd.DataFrame(data)
     network_models = ['abc', 'def']
-    df = get_response_rows_per_image(df, network_models)
+    df = get_response_rows_per_image(df)
     # print(df)
 
 
@@ -797,12 +832,18 @@ def main():
     parser.add_argument("--response_results", type=str, default="m3c_cvpr_results_11_16", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
     # parser.add_argument("--response_results", type=str, default="Batch_393773_batch_results.csv", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
     parser.add_argument("--survey_items_file", type=str, default="human_survey_items.csv", help="Path to the human_survey_items.csv file")
-    parser.add_argument("--network_models", type=str, nargs='+', default=["baseline", "contrastive", "genericSD", "positive"], help="List of neural network model names")
+    parser.add_argument("--network_models", type=str, nargs='+', default=["contrastive", "positive", "baseline", "genericSD"], help="List of neural network model names in the order they should be plotted.")
+    # parser.add_argument("--network_models", type=str, nargs='+', default=["baseline", "contrastive", "genericSD", "positive"], help="List of neural network model names")
     # note that you can specify no random seed by passing: --random_seed=None
+    parser.add_argument("--remap_model_names", type=json.loads, 
+                    default='{"contrastive":"SCoFT+MPC", "positive":"SCoFT+MP", "baseline":"SCoFT+M", "genericSD":"Stable Diffusion"}', 
+                    help="Remap model names as specified with a json dictionary, or specify empty curly brackets {{}} for no remapping. Ensures plots use the final names occurring in the paper.")
     parser.add_argument("--random_seed", type=int, default=8827, nargs='?', help="Random seed for reproducibility, default is 8827, you can specify no random seed with --random_seed=None.")
     args = parser.parse_args()
 
     test()
+
+    network_models = args.network_models
 
     # Get the list of CSV files to process
     if os.path.isfile(args.response_results):
@@ -820,12 +861,22 @@ def main():
     # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
     dataframes = []
     for csv_file in tqdm(csv_files):
-        df = process_survey_results_csv(csv_file, args.survey_items_file, args.network_models)
+        df = process_survey_results_csv(csv_file, args.survey_items_file, network_models)
         dataframes.append(df)
     
     # Concatenate the DataFrames
     combined_df = pd.concat(dataframes, axis=0)
-    aggregated_df = statistical_analysis(combined_df, args.network_models, args.random_seed)
+
+
+    if args.remap_model_names:
+        # Rename the model names throughout the table, e.g. "contrastive" -> "SCoFT+MPC". 
+        # Note substrings will be updated too, such as folder names in the filename paths.
+        combined_df, network_models = rename_throughout_table(combined_df, network_models, args.remap_model_names, rename_substring=False)
+
+    # save temp results to a file
+    combined_df.to_csv("TEMP-process_survey_results_csv_output.csv")
+
+    aggregated_df = statistical_analysis(combined_df, network_models, args.random_seed)
 
 if __name__ == "__main__":
     main()
