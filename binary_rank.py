@@ -122,7 +122,7 @@ def binary_rank_table(df, network_models):
     return binary_rank_df
 
 
-def binary_rank_table_old(df, network_models):
+def binary_rank_table_single_threaded(df, network_models):
     """
     Break down rank items into binary image comparison tasks and create a new DataFrame.
 
@@ -513,7 +513,7 @@ if __name__ == "__main__":
 
     # Call the old and new functions
     new_df = binary_rank_table(df, network_models)
-    old_df = binary_rank_table_old(df, network_models)
+    old_df = binary_rank_table_single_threaded(df, network_models)
 
     # Compare the outputs
     functions_match = old_df.equals(new_df)
