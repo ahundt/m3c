@@ -270,8 +270,8 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
                 order=models_ordered[:-1],
                 hue_order=models_ordered[1:])
         ax.set_ylim(0, 100)
-        ax.set_xlabel('Approach')
-        ax.set_ylabel('% times approach ranked lower (better)')
+        ax.set_xlabel(None)
+        ax.set_ylabel(None)
         # Plot dashed line at 50%
         ax.axhline(y=50, color='r', linestyle='--')
         ax.legend(title=None)
@@ -289,11 +289,14 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
             plot_barchart(df_grouped_subset, ax)
             ax.set_title('{}, {}'.format(country, item_title))
             
+    axes[0,0].set_ylabel('% ranked lower (better)')
+    plt.tight_layout()
     plt.savefig('binary_comparison_per_country.pdf')
+    plt.savefig('binary_comparison_per_country.png')
     plt.close(fig)
     # plt.show()
 
-    fig, axes = plt.subplots(1, len(item_titles), figsize=(len(item_titles)*5, 5))
+    fig, axes = plt.subplots(1, len(item_titles), figsize=(len(item_titles)*4, 3))
     for j in range(len(item_titles)):
         country = countries[i]
         item_title = item_titles[j]
@@ -309,6 +312,169 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
     plt.close(fig)
     # plt.show()
 
+
+def plot_violins(df, models_ordered=['contrastive','positive','baseline','genericSD']):
+    
+    # df = df[df['Item Title'] == 'Offensiveness']
+    # from plot_ranking import strip_plot_rank
+    # strip_plot_rank(df, y="Response")
+
+
+    item_titles = df['Item Title'].unique()
+    fig, axes = plt.subplots(1, len(item_titles), figsize=(len(item_titles)*4, 4))
+    for i in range(len(item_titles)):
+        question = item_titles[i]
+        df2 = df[df['Item Title'] == question].copy()
+        df2['count'] = 1
+        df2 = df2.groupby(["Neural Network Model", "Response"]).count().reset_index()
+
+        df_pivot =  df2.pivot(columns="Neural Network Model", index="Response", values="count")
+
+        # print(df_pivot.columns)
+        # df_pivot = df_pivot.rename({
+        #     "genericSD":"Stable Diffusion",
+        #     "contrastive":"Self-Contrastive"}, axis='index', errors="raise")
+
+        df_pivot = df_pivot[models_ordered]
+        for mod in models_ordered:
+            df_pivot[mod] /= df_pivot[mod].sum()
+            df_pivot[mod] *= 100
+
+        sns.heatmap(
+            annot=True,
+            fmt=".0f",
+            data=df_pivot,
+            cmap=sns.color_palette("rocket_r", as_cmap=True),
+            ax=axes[i],
+            cbar=False
+        )
+        axes[i].set_title(question)
+        axes[i].set_xlabel(None)
+        axes[i].set_ylabel(None)
+    axes[0].set_ylabel("Ranking")
+    plt.tight_layout()
+    plt.savefig('heat_map_by_item.pdf')
+    plt.savefig('heat_map_by_item.png')
+    plt.close(fig)
+
+    # create figure and axes
+    fig, ax = plt.subplots()
+    color = {"India":'orange', 'Korea':'blue', 'China':'green', 'Nigeria':'purple', 'Mexico':'red'}
+
+    countries = set(df['Country'].unique())
+    for country in countries:
+        sns.violinplot(
+            x="Neural Network Model", 
+            y="Response", 
+            hue="Country",
+            data=df[df['Country'] == country],
+            palette=color,
+            # split=True,
+            ax=ax,
+            density_norm="count",
+            common_norm=False,
+            # saturation=0.75,
+            inner=None,
+            # inner='quartile',
+            order=models_ordered,
+            fill=False
+        )
+    df_median = df.groupby(['Neural Network Model'])['Response'].median().reset_index()
+    sns.scatterplot(data=df_median, 
+                    x='Neural Network Model', 
+                    y="Response", 
+                    s=100,
+                    c='black',
+                    markers=['X'],
+                    style="Neural Network Model",
+                    legend=False,
+                    ax=ax)
+    df_mean = df.groupby(['Neural Network Model'])['Response'].mean().reset_index()
+    sns.scatterplot(data=df_mean, 
+                    x='Neural Network Model', 
+                    y="Response", 
+                    s=100,
+                    c='black',
+                    markers=['s'],
+                    style="Neural Network Model",
+                    legend=False,
+                    ax=ax)
+
+    # Set transparancy for all violins
+    for violin in ax.collections:
+        violin.set_alpha(0.75)
+    
+    plt.ylabel('Rank')
+    plt.yticks([1,2,3,4])
+    sns.move_legend(ax, "upper center", bbox_to_anchor=(1, 1))
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    # ax.spines['bottom'].set_visible(False)
+    # ax.spines['left'].set_visible(False)
+    plt.tight_layout()
+
+    plt.savefig('violin_plot_by_country.pdf')
+    plt.savefig('violin_plot_by_country.png')
+    plt.close(fig)
+    # plt.show()
+
+
+    fig, ax = plt.subplots()
+    sns.violinplot(
+        x="Neural Network Model", 
+        y="Response", 
+        # hue="Country",
+        data=df,
+        # palette=color,#[country],
+        # split=True,
+        ax=ax,
+        density_norm="count",
+        common_norm=False,
+        # saturation=0.75,
+        inner=None,
+        # inner='quartile',
+        order=models_ordered,
+        # fill=False
+    )
+    df_median = df.groupby(['Neural Network Model'])['Response'].median().reset_index()
+    sns.scatterplot(data=df_median, 
+                    x='Neural Network Model', 
+                    y="Response", 
+                    s=100,
+                    c='black',
+                    markers=['X'],
+                    style="Neural Network Model",
+                    legend=False,
+                    ax=ax)
+    df_mean = df.groupby(['Neural Network Model'])['Response'].mean().reset_index()
+    sns.scatterplot(data=df_mean, 
+                    x='Neural Network Model', 
+                    y="Response", 
+                    s=100,
+                    c='black',
+                    markers=['s'],
+                    style="Neural Network Model",
+                    legend=False,
+                    ax=ax)
+
+    # Set transparancy for all violins
+    for violin in ax.collections:
+        # violin.set_alpha(0.25)
+        violin.set_alpha(0.75)
+    
+    plt.ylabel('Rank')
+    plt.yticks([1,2,3,4])
+    # sns.move_legend(ax, "upper center", bbox_to_anchor=(1, 1))
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    # ax.spines['bottom'].set_visible(False)
+    # ax.spines['left'].set_visible(False)
+    plt.tight_layout()
+
+    plt.savefig('violin_plot.pdf')
+    plt.savefig('violin_plot.png')
+    plt.close(fig)
+    
 
 def statistical_analysis(df, network_models, seed=None):
     """ Perform statistical analysis on the DataFrame.
@@ -368,6 +534,7 @@ def statistical_analysis(df, network_models, seed=None):
     # Save the aggregated DataFrame to a CSV file
     aggregated_df_per_country.to_csv("aggregated_statistical_output_by_country.csv", index=False)
 
+    plot_violins(df)
 
     ####################
     # Binary Rank Stats
