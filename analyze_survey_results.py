@@ -77,11 +77,12 @@ def extract_and_process_task_answers(task_answers):
 
 
 def assess_worker_responses(
-        binary_rank_df,  
+        binary_rank_df,
         worker_column="WorkerId", 
         label_column="Binary Rank Response Left Image is Greater",
         crowdkit_grouping_columns = ['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country'],
-        binary_rank_reconstruction_grouping_columns=['Item Title', 'Country']
+        binary_rank_reconstruction_grouping_columns=['Item Title', 'Country'],
+        seed=None,  
     ):
     """
     Assess worker responses using the MMSR (Matrix Mean-Subsequence-Reduced) algorithm.
@@ -109,6 +110,8 @@ def assess_worker_responses(
     # join binary_rank_reconstruction_grouping_columns with a dash
     binary_rank_reconstruction_grouping_columns_str = '-'.join(binary_rank_reconstruction_grouping_columns).replace(' ', '-')
 
+    if seed is not None:
+        np.random.seed(seed)
     # TODO(ahundt) might need to add a third label for "None" when there is no response, particularly for n_labels=2
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
     from crowdkit.aggregation import MMSR
@@ -298,7 +301,7 @@ def plot_binary_comparisons(df, models_ordered=['contrastive','positive','baseli
     # plt.show()
 
 
-def statistical_analysis(df, network_models):
+def statistical_analysis(df, network_models, seed=None):
     """ Perform statistical analysis on the DataFrame.
 
         Parameters:
@@ -375,13 +378,13 @@ def statistical_analysis(df, network_models):
     plot_binary_comparisons(binary_rank_df.copy())
 
     # ranking per country and per question
-    rank_results_ci, results_df_ci, worker_skills_ci = assess_worker_responses(binary_rank_df)
+    rank_results_ci, results_df_ci, worker_skills_ci = assess_worker_responses(binary_rank_df, seed=seed)
     # ranking per country
-    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Country'], binary_rank_reconstruction_grouping_columns=['Country'])
+    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Country'], binary_rank_reconstruction_grouping_columns=['Country'], seed=seed)
     # ranking per question
-    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type'], binary_rank_reconstruction_grouping_columns=['Item Title'])
+    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type'], binary_rank_reconstruction_grouping_columns=['Item Title'], seed=seed)
     # overall ranking (across all countries and questions)
-    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model','Item Type'], binary_rank_reconstruction_grouping_columns=[])
+    rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model','Item Type'], binary_rank_reconstruction_grouping_columns=[], seed=seed)
 
     # TODO(ahundt) add statistical analysis here, save results to a file, and visualize them
 
@@ -619,6 +622,8 @@ def main():
     # parser.add_argument("--response_results", type=str, default="Batch_393773_batch_results.csv", help="Path to the file or folder containing CSV files with Amazon Mechanical Turk survey response results.")
     parser.add_argument("--survey_items_file", type=str, default="human_survey_items.csv", help="Path to the human_survey_items.csv file")
     parser.add_argument("--network_models", type=str, nargs='+', default=["baseline", "contrastive", "genericSD", "positive"], help="List of neural network model names")
+    # note that you can specify no random seed by passing: --random_seed=None
+    parser.add_argument("--random_seed", type=int, default=8827, nargs='?', help="Random seed for reproducibility, default is 8827, you can specify no random seed with --random_seed=None.")
     args = parser.parse_args()
 
     test()
@@ -644,7 +649,7 @@ def main():
     
     # Concatenate the DataFrames
     combined_df = pd.concat(dataframes, axis=0)
-    aggregated_df = statistical_analysis(combined_df, args.network_models)
+    aggregated_df = statistical_analysis(combined_df, args.network_models, args.random_seed)
 
 if __name__ == "__main__":
     main()
