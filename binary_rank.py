@@ -10,8 +10,23 @@ from itertools import combinations
 import csv
 from tqdm import tqdm
 
-# Define a function to process a single group of images
-def process_group(group):
+
+def binary_rank_one_table_df_group(group):
+    """
+    Break down one group of ranked survey items into binary image comparison tasks and create a new DataFrame.
+
+    If there are four ranks, then there are six unique pairs of images for binary comparison (n chose 2)
+    to fully define the ranking. The binary comparison tasks are used for the crowd-kit library for 
+    aggregating results from crowd workers.
+
+    This is a helper function for binary_rank_table().
+
+    Parameters:
+        group (pandas.DataFrame): The DataFrame containing survey responses for a single group.
+
+    Returns:
+        list: The list of new rows for the binary comparison DataFrame.
+    """
 
     # Define key columns
     key_columns = ["Item Title Index", "Item Title", "Item Type", "Country", 
@@ -70,13 +85,14 @@ def process_group(group):
     return new_rows
 
 
-def binary_rank_table(df, network_models):
+def binary_rank_table(df, network_models, groupby=['Source CSV File', 'Source CSV Row Index', 'Item Title Index', 'HITId']):
     """
     Break down rank items into binary image comparison tasks and create a new DataFrame.
 
     Parameters:
         df (pandas.DataFrame): The DataFrame containing survey responses.
         network_models (list): List of network models used for evaluation.
+        groupby (list): List of columns to group by. The function will calculate the binary comparison tasks within each group separately.
 
     Returns:
         pandas.DataFrame: The new DataFrame with binary comparison tasks.
@@ -105,9 +121,9 @@ def binary_rank_table(df, network_models):
     import multiprocessing as mp
     pool = mp.Pool(mp.cpu_count())
 
-    # Apply the process_group function to each group and get the results
+    # Apply the binary_rank_one_table_df_group function to each group and get the results
     # Use imap_unordered and tqdm to show the progress
-    results = list(tqdm(pool.imap_unordered(process_group, [group for _, group in rank_df.groupby(['Source CSV File', 'Source CSV Row Index', 'Item Title Index', 'HITId'])]), desc="Creating binary rank table", total=len(rank_df.groupby(['Item Title Index', 'HITId']))))
+    results = list(tqdm(pool.imap_unordered(binary_rank_one_table_df_group, [group for _, group in rank_df.groupby(groupby)]), desc="Creating binary rank table", total=len(rank_df.groupby(groupby))))
 
     # Close the pool and join the processes
     pool.close()
@@ -122,7 +138,7 @@ def binary_rank_table(df, network_models):
     return binary_rank_df
 
 
-def binary_rank_table_single_threaded(df, network_models):
+def binary_rank_table_single_threaded(df, network_models, groupby=['Source CSV File', 'Source CSV Row Index', 'Item Title Index', 'HITId']):
     """
     Break down rank items into binary image comparison tasks and create a new DataFrame.
 
@@ -154,7 +170,7 @@ def binary_rank_table_single_threaded(df, network_models):
         'Binary Rank Response Left Image is Greater'] + key_columns)
 
     # Iterate through unique pairs of images for binary comparison
-    for _, group in tqdm(rank_df.groupby(['Source CSV File', 'Source CSV Row Index', 'Item Title Index', 'HITId']), desc="Creating binary rank table"):
+    for _, group in tqdm(rank_df.groupby(groupby), desc="Creating binary rank table"):
         image_combinations = list(combinations(sorted(group['Image File Path'].to_list()), 2))
 
         for left_image, right_image in image_combinations:
@@ -197,10 +213,10 @@ def convert_table_to_crowdkit_format(
         task_columns=['Left Binary Rank Image', 'Right Binary Rank Image', 'Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country', 'Input.prompt', 'Input.seed'],
         worker_column='WorkerId',
         label_column='Binary Rank Response Left Image is Greater',
-        separator='|'):
-    """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string.
-
-    See restore_from_crowdkit_format() for restoring the table.
+        separator='|',
+        crowdkit_input_format='classification',
+        remap_to_integer_ids=False):
+    """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string in the format expected by the crowd-kit library.
 
     The purpose of this function is to convert the binary rank table into a format that can be used by the
     crowd-kit library. The crowd-kit library requires the table to be in a specific format, which is described
@@ -214,35 +230,33 @@ def convert_table_to_crowdkit_format(
     0	1	1
     0	2	0
 
+    
+    See restore_from_crowdkit_format() for restoring the table, and the original column names. 
+    Restoring the table is valuable for saving and visualizing the result of crowd-kit aggregation for human readable visualization analysis.
+
     Parameters:
 
         binary_rank_df (pandas.DataFrame): The DataFrame containing binary rank responses.
         task_columns (list): List of column names to group by, and concatenate into a single string.
         worker_column (str): Name of the column containing the worker ids.
         label_column (str): Name of the column containing the labels.
+        crowdkit_input_format (str): The type of table input format, either 'classification' or 'pairwise'. 
+            Classifier has 'worker', 'task', 'label' columns.
+            'pairwise' has worker, left, right, and label columns. For each row label must be equal to either left column or right column.  
+            'pairwise' example: https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.pairwise.noisy_bt.NoisyBradleyTerry.fit/
+            Defaults to 'classification'.
+        remap_to_integer_ids (bool): Whether to remap the task, worker, and label columns to integer ids. Defaults to False.
+            If True, the task, worker, and label columns will be remapped to integer ids.
+            Otherwise the task, worker, and label columns will be left as strings.
     
     Returns:
 
         The returns include the simplified DataFrame, and maps from the task, worker, and label columns to integer ids for restoring the table.
-            pandas.DataFrame: The simplified DataFrame with concatenated entries.
-            dict: A map from the task column to integer ids.
-            dict: A map from the worker column to integer ids.
-            dict: A map from the label column to integer ids.
-            list: A list of column names.
+            pandas.DataFrame: The simplified DataFrame with the columns 'task', 'worker', and 'label', where task is a single string containing the concatenated task columns.
+            table_restore_metadata (dict): A dictionary containing the maps from the task, worker, and label columns to integer ids for restoring the table to the original format.
     """
     # convert every entry to a string
     binary_rank_df = binary_rank_df.astype(str)
-
-    # # Group by the specified columns
-    # grouped = binary_rank_df.groupby(task_columns)
-
-    # # Aggregate the columns into a single string
-    # simplified_table = grouped.agg({
-    #     worker_column: 'first',
-    #     label_column: 'first'
-    # }).reset_index()
-    # # save out worker and label simplified table
-    # simplified_table.to_csv('simplified_binary_rank_table_worker_and_label.csv', index=False, quoting=csv.QUOTE_ALL)
 
     column_titles = {
         'task': task_columns,
@@ -257,7 +271,7 @@ def convert_table_to_crowdkit_format(
     st2['label'] = binary_rank_df[label_column]
 
     # get the reformatting variables
-    task_columns = '|'.join(task_columns)
+    task_columns = separator.join(task_columns)
     # make a map from the task column to integer ids
     task_list = st2['task'].unique()
     task_to_id = {task: i for i, task in enumerate(task_list)}
@@ -283,12 +297,30 @@ def convert_table_to_crowdkit_format(
         'tasks_list': task_list
     }
 
+    # remap the task, worker, and label columns to integer ids
+    if remap_to_integer_ids:
+        st2['task'] = st2['task'].map(task_to_id)
+        st2['worker'] = st2['worker'].map(worker_to_id)
+        st2['label'] = st2['label'].map(label_to_id)
+
     # return the simplified int table, the maps, and the column names
     return st2, table_restore_metadata
 
 
+
 def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
     """ Restore the binary rank table from the simplified table or a results table.
+
+    Restoring the table is valuable for saving and visualizing the result of crowd-kit aggregation for human readable visualization analysis.
+
+    Parameters:
+            
+            crowdkit_df (pandas.DataFrame): The DataFrame containing binary rank responses.
+            table_restore_metadata (dict): A dictionary containing the maps from the task, worker, and label columns to integer ids for restoring the table to the original format.
+    
+    Returns:
+    
+                pandas.DataFrame: The restored DataFrame with the original columns.
     """
     # If crowdkit_df is a Series, convert it to a DataFrame
     if isinstance(crowdkit_df, pd.Series):
@@ -324,7 +356,7 @@ def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
 
 def reconstruct_ranking(df, group_by=['Item Title', 'Country'], category='Neural Network Model', response='agg_label', rank_method='max'):
     """
-    Reconstruct the ranking of the categories according to the specified grouping.
+    Reconstruct the ranking of the categories according to the specified grouping via a simple majority vote.
 
     Parameters:
         df (pandas.DataFrame): The DataFrame containing the binary rank tasks and responses.

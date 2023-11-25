@@ -101,19 +101,20 @@ def assess_worker_responses(
     print(f'binary_rank_df.columns: {binary_rank_df.columns}')
     # print the unique workerIds in the binary_rank_df
     print(f'Unique workers: binary_rank_df[worker_column].unique(): {len(binary_rank_df[worker_column].unique())}')
-    # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
-    task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_format(
-        binary_rank_df, worker_column=worker_column, label_column=label_column,
-        task_columns=crowdkit_grouping_columns
-    )
-    # print table restore metadata
     # join crowdkit_grouping_columns with a dash and replace space with dash
     crowdkit_grouping_columns_str = '-'.join(crowdkit_grouping_columns).replace(' ', '-')
     # join binary_rank_reconstruction_grouping_columns with a dash
     binary_rank_reconstruction_grouping_columns_str = '-'.join(binary_rank_reconstruction_grouping_columns).replace(' ', '-')
 
+    #########################################
+    # MMSR
+    # print table restore metadata
     # TODO(ahundt) consider adding a pairwise comparison algorithm like Noisy BradleyTerry https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.pairwise.noisy_bt.NoisyBradleyTerry/ https://github.com/Toloka/crowd-kit/blob/v1.2.1/examples/Readability-Pairwise.ipynb
-
+    # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
+    task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_format(
+        binary_rank_df, worker_column=worker_column, label_column=label_column,
+        task_columns=crowdkit_grouping_columns
+    )
     if seed is not None:
         np.random.seed(seed)
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
@@ -125,7 +126,8 @@ def assess_worker_responses(
         n_labels=table_restore_metadata['n_labels'],  # Assuming binary responses
         workers_mapping=table_restore_metadata['workers_mapping'],
         tasks_mapping=table_restore_metadata['tasks_mapping'],
-        labels_mapping=table_restore_metadata['labels_mapping']
+        labels_mapping=table_restore_metadata['labels_mapping'],
+        random_state=seed
     )
     print(f'st2_int.shape: {task_worker_label_df.shape} \ntask_worker_label_df:\n{task_worker_label_df}')
     task_worker_label_df.to_csv("task_worker_label_df.csv")
@@ -202,14 +204,14 @@ def assess_worker_responses(
     #########################################
     # calculate the mmsr rank results
     results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
-    print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df: {results_df}')
+    print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df:\n{results_df}')
     results_df.to_csv(f"{crowdkit_model}_results_restored-{binary_rank_reconstruction_grouping_columns_str}.csv")
     # print the columns of results_df
     print(f'results_df.columns: {results_df.columns}')
     # print results_df
     print(f'results_df:\n{results_df}')
     rank_results = binary_rank.reconstruct_ranking(results_df, binary_rank_reconstruction_grouping_columns)
-    print(f'Finished CrowdKit Optimization MMSR.fit_predict(), reconstruct_ranking() rank_results: {rank_results}')
+    print(f'Finished CrowdKit Optimization MMSR.fit_predict(), reconstruct_ranking() rank_results:\n{rank_results}')
     rank_results.to_csv(f"{crowdkit_model}_rank_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
     # save a plot of the model rank results
     hue = None
