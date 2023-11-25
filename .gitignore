@@ -1,2 +1,9 @@
 
 m3c_eval/
+*.csv
+*.pdf
+*.png
+*.zip
+*.json
+.DS_Store
+*.pyc
