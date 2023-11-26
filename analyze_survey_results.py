@@ -781,7 +781,7 @@ def statistical_analysis(df, network_models, load_existing=False, seed=None):
         'Right Binary Rank Image': ['nunique', 'count'],
         'WorkerId': ['nunique', 'count'],
         'Country': ['nunique', 'count'],
-        'Binary Rank Response Left Image is Greater': ['nunique', 'count']
+        'Binary Rank Response Left Image is Greater': ['nunique', 'count', 'mean', 'median', 'min', 'max', 'sem']
     }
     agg_df = binary_rank_df.agg(aggregation_functions).reset_index()
     agg_df.to_csv(f"aggregated_statistical_output_binary.csv")
