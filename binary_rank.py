@@ -208,13 +208,12 @@ def binary_rank_table_single_threaded(df, network_models, groupby=['Source CSV F
     return binary_rank_df
 
 
-def convert_table_to_crowdkit_format(
+def convert_table_to_crowdkit_classification_format(
         binary_rank_df, 
         task_columns=['Left Binary Rank Image', 'Right Binary Rank Image', 'Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country', 'Input.prompt', 'Input.seed'],
         worker_column='WorkerId',
         label_column='Binary Rank Response Left Image is Greater',
         separator='|',
-        crowdkit_input_format='classification',
         remap_to_integer_ids=False):
     """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string in the format expected by the crowd-kit library.
 
@@ -226,9 +225,9 @@ def convert_table_to_crowdkit_format(
 
     Here is an example of the table format:
     task	worker	label
-    0	0	0
-    0	1	1
-    0	2	0
+    0	    0	    0
+    0	    1	    1
+    0	    2	    0
 
     
     See restore_from_crowdkit_format() for restoring the table, and the original column names. 
@@ -240,11 +239,7 @@ def convert_table_to_crowdkit_format(
         task_columns (list): List of column names to group by, and concatenate into a single string.
         worker_column (str): Name of the column containing the worker ids.
         label_column (str): Name of the column containing the labels.
-        crowdkit_input_format (str): The type of table input format, either 'classification' or 'pairwise'. 
-            Classifier has 'worker', 'task', 'label' columns.
-            'pairwise' has worker, left, right, and label columns. For each row label must be equal to either left column or right column.  
-            'pairwise' example: https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.pairwise.noisy_bt.NoisyBradleyTerry.fit/
-            Defaults to 'classification'.
+        separator (str): The separator to use for concatenating the task columns. Defaults to '|'.
         remap_to_integer_ids (bool): Whether to remap the task, worker, and label columns to integer ids. Defaults to False.
             If True, the task, worker, and label columns will be remapped to integer ids.
             Otherwise the task, worker, and label columns will be left as strings.
@@ -258,6 +253,7 @@ def convert_table_to_crowdkit_format(
     # convert every entry to a string
     binary_rank_df = binary_rank_df.astype(str)
 
+    # get the column titles for restoring the table
     column_titles = {
         'task': task_columns,
         'worker': worker_column,
@@ -307,8 +303,7 @@ def convert_table_to_crowdkit_format(
     return st2, table_restore_metadata
 
 
-
-def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
+def restore_from_crowdkit_classification_format(crowdkit_df, table_restore_metadata):
     """ Restore the binary rank table from the simplified table or a results table.
 
     Restoring the table is valuable for saving and visualizing the result of crowd-kit aggregation for human readable visualization analysis.
@@ -349,6 +344,162 @@ def restore_from_crowdkit_format(crowdkit_df, table_restore_metadata):
 
     # drop the task column
     st2 = st2.drop(columns=['task'])
+
+    # return the restored table
+    return st2
+
+
+def convert_table_to_crowdkit_pairwise_format(
+        binary_rank_df, 
+        worker_column='WorkerId',
+        label_column='Binary Rank Response Left Image is Greater',
+        pairwise_left_columns=['Left Binary Rank Image', 'Left Neural Network Model'],
+        pairwise_right_columns=['Right Binary Rank Image', 'Right Neural Network Model'],
+        separator='|',
+        left_right_separator='>',
+        remap_to_integer_ids=False):
+    """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string in the format expected by the crowd-kit library for pairwise.
+
+
+    Here is an example of the table format for pairwise:
+    worker  left	right	label
+    0	    0	    1	    0
+    1	    0	    1	    1
+    2	    0	    1	    0
+
+    Parameters:
+
+        binary_rank_df (pandas.DataFrame): The DataFrame containing binary rank responses.
+        worker_column (str): The name of the column containing the worker ids. Defaults to 'WorkerId'.
+        label_column (str): The name of the column containing the labels. Defaults to 'Binary Rank Response Left Image is Greater'.
+        pairwise_left_columns (list): The list of columns to use as the left task in the pairwise format. Defaults to ['Left Binary Rank Image', 'Left Neural Network Model'].
+        pairwise_right_columns (list): The list of columns to use as the right task in the pairwise format. Defaults to ['Right Binary Rank Image', 'Right Neural Network Model'].
+        separator (str): The separator to use for concatenating the task columns. Defaults to '|'.
+        left_right_separator (str): The separator to use for concatenating the left and right columns. Defaults to '>'.
+        remap_to_integer_ids (bool): Whether to remap the task, worker, and label columns to integer ids. Defaults to False.
+            If True, the task, worker, and label columns will be remapped to integer ids.
+            Otherwise the task, worker, and label columns will be left as strings.
+    
+    Returns:
+
+        The returns include the simplified DataFrame, and maps from the task, worker, and label columns to integer ids for restoring the table.
+            pandas.DataFrame: The simplified DataFrame with the columns 'worker', 'left', 'right', and 'label', where left and right are single strings containing the concatenated task columns.
+            table_restore_metadata (dict): A dictionary containing the maps from the task, worker, and label columns to integer ids for restoring the table to the original format.
+    """
+    # convert every entry to a string
+    binary_rank_df = binary_rank_df.astype(str)
+
+    # use the pairwise left and right columns as the task columns
+    st2 = pd.DataFrame()
+    st2['worker'] = binary_rank_df[worker_column]
+    st2['left'] = binary_rank_df[pairwise_left_columns].apply(lambda row: separator.join(row), axis=1)
+    st2['right'] = binary_rank_df[pairwise_right_columns].apply(lambda row: separator.join(row), axis=1)
+    st2['label'] = binary_rank_df[label_column]
+
+    # use the label column to insert either the left or right value of a given row into the label column
+    # if the label is True or 1, then the left value is greater, otherwise the right value is greater
+    # The contents of st2['label'] will be the greater of of st2['left'] or st2['right'].
+    st2['label'] = st2.apply(lambda row: row['left'] if row['label'] else row['right'], axis=1)
+
+    # get the column titles for restoring the table
+    column_titles = {
+        'worker': worker_column,
+        'left': pairwise_left_columns,
+        'right': pairwise_right_columns,
+        'label': label_column
+    }
+
+    # get the reformatting variables
+    tasks = st2[['left', 'right']].apply(lambda row: left_right_separator.join(row), axis=1)
+    task_list = tasks.unique()
+    task_to_id = {task: i for i, task in enumerate(task_list)}
+    left_list = st2['left'].unique()
+    left_to_id = {left: i for i, left in enumerate(left_list)}
+    right_list = st2['right'].unique()
+    right_to_id = {right: i for i, right in enumerate(right_list)}
+    worker_list = st2['worker'].unique()
+    worker_to_id = {worker: i for i, worker in enumerate(worker_list)}
+    label_list = st2['label'].unique()
+    label_to_id = {label: i for i, label in enumerate(label_list)}
+
+    table_restore_metadata = {
+        'column_titles': column_titles,
+        'tasks_mapping': task_to_id,
+        'workers_mapping': worker_to_id,
+        'labels_mapping': label_to_id,
+        'separator': separator,
+        'left_right_separator': left_right_separator,
+        'n_tasks': len(task_to_id),
+        'n_workers': len(worker_to_id),
+        'n_labels': len(label_to_id),
+        'workers_list': worker_list,
+        'labels_list': label_list,
+        'tasks_list': task_list,
+        'left_list': left_list,
+        'right_list': right_list,
+        'left_to_id': left_to_id,
+        'right_to_id': right_to_id,
+        'n_left': len(left_to_id),
+        'n_right': len(right_to_id)
+    }
+
+    if remap_to_integer_ids:
+        st2['left'] = st2['left'].map(task_to_id)
+        st2['right'] = st2['right'].map(task_to_id)
+        st2['worker'] = st2['worker'].map(worker_to_id)
+        st2['label'] = st2['label'].map(label_to_id)
+
+    return st2, table_restore_metadata
+
+
+def restore_from_crowdkit_pairwise_format(crowdkit_df, table_restore_metadata):
+    """ Restore the binary rank table from the simplified table or a results table for the pairwise format.
+
+    Restoring the table is valuable for saving and visualizing the result of crowd-kit aggregation for human readable visualization analysis.
+
+    Parameters:
+            
+            crowdkit_df (pandas.DataFrame): The DataFrame containing binary rank responses.
+            table_restore_metadata (dict): A dictionary containing the maps from the task, worker, and label columns to integer ids for restoring the table to the original format.
+    
+    Returns:
+    
+                pandas.DataFrame: The restored DataFrame with the original columns.
+    """
+    # If crowdkit_df is a Series, convert it to a DataFrame
+    if isinstance(crowdkit_df, pd.Series):
+        crowdkit_df = crowdkit_df.to_frame()
+        crowdkit_df['label'] = crowdkit_df.index
+
+    # Check if the 'left' and 'right' columns exist
+    print(f"step 1 of restoring from crowdkit format crowdkit_df.columns: {crowdkit_df.columns}")
+
+    # restore the left and right columns from integer ids to strings
+    st2 = pd.DataFrame()
+    # Check if the columns exist and the first value is an integer, then perform the mapping
+    # Typical columns include: ['worker', 'left', 'right', 'label'] or ['agg_label', 'agg_score']
+    for column in crowdkit_df.columns:
+        if column in crowdkit_df:
+            first_value = pd.to_numeric(crowdkit_df[column].iloc[0], errors='coerce')
+            if not np.isnan(first_value) and np.issubdtype(first_value, np.integer) and column in table_restore_metadata['column_titles']:
+                st2[column] = crowdkit_df[column].map({v: k for k, v in table_restore_metadata[column].items()})
+            else:
+                st2[column] = crowdkit_df[column]
+
+    print(f"step 2 of restoring from crowdkit format crowdkit_df.columns: {crowdkit_df.columns}, st2.columns: {st2.columns}")
+    # split the left and right columns into the original columns
+    if 'left' in st2.columns:
+        for i, col in enumerate(table_restore_metadata['column_titles']['left']):
+                st2[col] = st2['left'].apply(lambda x: x.split(table_restore_metadata['separator'])[i])
+    if 'right' in st2.columns:
+        for i, col in enumerate(table_restore_metadata['column_titles']['right']):
+                st2[col] = st2['right'].apply(lambda x: x.split(table_restore_metadata['separator'])[i])
+
+    # drop the left and right columns if they exist
+    if 'left' in st2.columns:
+        st2 = st2.drop(columns=['left'])
+    if 'right' in st2.columns:
+        st2 = st2.drop(columns=['right'])
 
     # return the restored table
     return st2

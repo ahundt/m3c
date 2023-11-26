@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import plot_ranking
 import plot_consensus_alignment_skills
+# import inter_rater_reliability
 
 
 def check_column_group_for_consistent_values_in_another_column(df, columns_to_group=["HITId"], columns_to_match=["WorkerId"]):
@@ -77,6 +78,226 @@ def extract_and_process_task_answers(task_answers):
     return pd.Series(ratings_data)  # Convert the dictionary to a Series
 
 
+def worker_skills_add_country_and_save_to_csv(binary_rank_df, worker_skills, csv_filename="worker_skills.csv", plot_filename="worker_skills", xlim=(0, 1.1)):
+    """ Save the worker skills to a CSV file, adding their country as an extra column.
+    
+    Extract the participant (worker) consensus alignment (aka "skills") (this can be visualized with plot_consensus_alignment_skills.py)
+    """
+    # make it a dataframe if it isn't already
+    if not isinstance(worker_skills, pd.DataFrame):
+        worker_skills = pd.DataFrame(worker_skills)
+    # Create a smaller DataFrame with unique 'workerId' and 'Country' pairs
+    unique_worker_countries = binary_rank_df[['WorkerId', 'Country']].drop_duplicates()
+
+    # Create a mapping from 'workerId' to 'Country' in the smaller DataFrame
+    country_mapping = unique_worker_countries.set_index('WorkerId')['Country']
+
+    # Add the 'Country' column to worker_skills using the mapping
+    worker_skills['Country'] = worker_skills.index.map(country_mapping)
+
+    # rename "skill" Consensus Alignment and "worker" Participant
+    worker_skills.rename(columns={ 'skill': 'Consensus Alignment', 'worker': 'Participant'}, inplace=True)
+
+    # save worker skills to a file
+    worker_skills.to_csv(csv_filename)
+    print(f'worker_skills:\n{worker_skills}')
+    # plot the consensus alignment of peception (the underlying algorithm referes to this as "skills")
+    plot_consensus_alignment_skills.swarm_violin_plot(worker_skills, filename=plot_filename, orient='v', size=(10, 6), palette=None, xlim=xlim)
+    return worker_skills
+
+
+# def prepare_kendalls_w_data(df,
+#         worker_column="WorkerId", 
+#         label_column="Binary Rank Response Left Image is Greater",
+#         crowdkit_grouping_columns = ['Left Neural Network Model', 'Right Neural Network Model', 'Item Title Index', 'Item Title', 'Item Type', 'Country'],
+#         item_grouping_columns=['Item Title', 'Country', 'Source CSV Row Index']):
+#     #########################################
+#     # Kendall's w
+#     grouping_str = '-'.join(crowdkit_grouping_columns).replace(' ', '-')
+#     # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
+#     # debug save task_worker_label_df to csv
+#     # task_worker_label_df.to_csv(f"task_worker_label_df-{crowdkit_model}-{crowdkit_grouping_columns_str}.csv")
+#     # Pivot the DataFrame to get labels by worker and task
+#     annotations = df.pivot_table(index='worker', columns='task', values='label', aggfunc='first').reset_index().astype(float)
+#     kendalls_w = inter_rater_reliability.kendalls_w(annotations)
+#     print(f'Kendall\'s W: {kendalls_w}')
+#     # save to csv
+#     annotations.to_csv(f"kendalls_w_annotations-{grouping_str}.csv")
+
+# def assess_kendalls_w(df,
+#         worker_column="WorkerId", 
+#         label_column="Response",
+#         crowdkit_grouping_columns=['Item Title', 'Country', 'Source CSV Row Index'],
+#         item_grouping_columns=['Item Title', 'Country', 'Source CSV Row Index']):
+    
+#     # Print the columns
+#     print(f'kendalls_w_df.columns: {df.columns}')
+    
+#     # Make a copy of the dataframe
+#     df = df.copy()
+    
+#     # Group by 'crowdkit_grouping_columns' and convert 'Response' column to numeric
+#     df[label_column] = df.groupby(crowdkit_grouping_columns)[label_column].transform(lambda x: pd.to_numeric(x, errors='coerce'))
+    
+#     # Pivot the dataframe to have items as rows and raters as columns
+#     pivot_df = df.pivot_table(index=item_grouping_columns, columns=worker_column, values=label_column)
+    
+#     # Calculate Kendall's W
+#     kendalls_w_value = inter_rater_reliability.kendalls_w(pivot_df)
+#     print(f"Kendall's W: {kendalls_w_value}")
+    
+#     # Save annotations to CSV file
+#     grouping_str = '-'.join(crowdkit_grouping_columns).replace(' ', '-')
+#     pivot_df.to_csv(f"kendalls_w_annotations-{grouping_str}.csv")
+
+#     return kendalls_w_value
+
+
+
+def plot_rank_strip(results_df, crowdkit_model, binary_rank_reconstruction_grouping_columns, show_plot=False):
+    """ Plot the rank results using strip plot.
+    """
+    binary_rank_reconstruction_grouping_columns_str = '-'.join(binary_rank_reconstruction_grouping_columns).replace(' ', '-')
+    # reverse the grouping columns because that's consistent with the other plots
+    binary_rank_reconstruction_grouping_columns = binary_rank_reconstruction_grouping_columns[::-1]
+    # Aggregate the ranks based on the groupings and 'agg_label' column
+    aggregation_functions = {
+        'agg_score': np.mean
+    }
+    results_agg_df = results_df.groupby(binary_rank_reconstruction_grouping_columns).agg(aggregation_functions).reset_index()
+    # group, then sort within groups by agg_score
+    # results_agg_df.sort_values(by=binary_rank_reconstruction_grouping_columns + ['agg_score'], inplace=True, ascending=True)
+    # get the number of models
+    # num_models = len(results_agg_df['Neural Network Model'].unique())
+    # subtract the aggreesive score from 1 to get the rank
+    # results_agg_df['Rank'] = results_agg_df['agg_score'].apply(lambda x: (1 - x) * main_category_count)
+    # group again and set the rank to the one indexed index within the group
+    if len(binary_rank_reconstruction_grouping_columns) > 1:
+        # exclude the last column from the grouping because that's what we want to rank by (Neural Network Model)
+        group_cols = binary_rank_reconstruction_grouping_columns[:-1]
+        results_agg_df['Rank'] = results_agg_df.groupby(group_cols)['agg_score'].rank(method='first', ascending=False)
+        # sort by rank within the groups
+        results_agg_df.sort_values(by=binary_rank_reconstruction_grouping_columns[:-1] + ['Rank'], inplace=True, ascending=True)
+    else:
+        results_agg_df['Rank'] = results_agg_df['agg_score'].rank(method='first', ascending=False)
+        # sort by rank
+        results_agg_df.sort_values(by=['Rank'], inplace=True, ascending=True)
+    # add a rank column by the index within the group
+    results_agg_df.to_csv(f"{crowdkit_model}_results_agg-{binary_rank_reconstruction_grouping_columns_str}.csv")
+    # print(f'Finished CrowdKit Optimization NoisyBradleyTerry.fit_predict(), Results:')
+    # print(results_agg_df)
+
+    # create the rank df by dropping the agg_score column
+    rank_df = results_agg_df.drop(columns=['agg_score'])
+
+    # save a plot of the model rank results
+    hue = None
+    if 'Country' in binary_rank_reconstruction_grouping_columns:
+        hue = 'Country'
+    if 'Item Title' in binary_rank_reconstruction_grouping_columns:
+        hue = 'Item Title'
+    if ['Country', 'Item Title'] in binary_rank_reconstruction_grouping_columns:
+        hue = ['Country', 'Item Title']
+    
+    if binary_rank_reconstruction_grouping_columns:
+        title = f"Model Rankings by {', '.join(binary_rank_reconstruction_grouping_columns)}"
+    else:
+        title = f"Model Rankings Across All Responses"
+
+    plot_ranking.strip_plot_rank(rank_df, x='Neural Network Model', y='Rank', hue=hue, filename=f"{crowdkit_model}_rank_results-{binary_rank_reconstruction_grouping_columns_str}", show_plot=show_plot, title=title)
+
+
+def assess_worker_binary_responses_noisy_bradley_terry(
+        binary_rank_df,
+        worker_column="WorkerId", 
+        label_column="Binary Rank Response Left Image is Greater",
+        pairwise_left_columns=['Left Binary Rank Image', 'Left Neural Network Model', 'Item Title', 'Country'],
+        pairwise_right_columns=['Right Binary Rank Image', 'Right Neural Network Model', 'Item Title', 'Country'],
+        binary_rank_reconstruction_grouping_columns=['Neural Network Model', 'Item Title', 'Country'],
+        crowdkit_model='noisy_bradley_terry',
+        seed=None,  
+    ):
+    """
+    Assess worker responses using the MMSR (Matrix Mean-Subsequence-Reduced) algorithm.
+
+    Parameters:
+        df (pandas.DataFrame): The DataFrame containing worker responses.
+
+    Returns:
+        pandas.Series: The estimated skill levels of workers.
+    """
+    # print running crowdkit
+    print(f'Running Crowdkit {crowdkit_model}')
+    # print the columns of the DataFrame
+    print(f'binary_rank_df.columns: {binary_rank_df.columns}')
+    # print the unique workerIds in the binary_rank_df
+    print(f'Unique workers: binary_rank_df[worker_column].unique(): {len(binary_rank_df[worker_column].unique())}')
+    # join crowdkit_grouping_columns with a dash and replace space with dash
+    # crowdkit_grouping_columns_str = '-'.join(crowdkit_grouping_columns).replace(' ', '-')
+    # join binary_rank_reconstruction_grouping_columns with a dash
+    binary_rank_reconstruction_grouping_columns_str = '-'.join(binary_rank_reconstruction_grouping_columns).replace(' ', '-')
+
+    task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_pairwise_format(
+        binary_rank_df, worker_column=worker_column, label_column=label_column, pairwise_left_columns=pairwise_left_columns, pairwise_right_columns=pairwise_right_columns
+    )
+
+    #########################################
+    # Noisy Bradley Terry
+    # pairwise comparison algorithm like Noisy BradleyTerry https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.pairwise.noisy_bt.NoisyBradleyTerry/ https://github.com/Toloka/crowd-kit/blob/v1.2.1/examples/Readability-Pairwise.ipynb
+    if seed is not None:
+        np.random.seed(seed)
+    noisy_bt = NoisyBradleyTerry(
+        n_iter=100,
+        tol=1e-5,
+        random_state=seed
+    )
+
+    print(f'st2_int.shape: {task_worker_label_df.shape} \ntask_worker_label_df:\n{task_worker_label_df}')
+    task_worker_label_df.to_csv("task_worker_label_df.csv")
+
+    print(f'Running CrowdKit Optimization NoisyBradleyTerry.fit_predict()')
+    # Fit the model and predict worker skills
+    noisy_bt = noisy_bt.fit(task_worker_label_df)
+    print(f'Finished CrowdKit Optimization NoisyBradleyTerry.fit(), Results:')
+    # plot and save worker skills
+    worker_skills = worker_skills_add_country_and_save_to_csv(
+        binary_rank_df, noisy_bt.skills_, 
+        csv_filename=f"{crowdkit_model}_consensus_alignment-{binary_rank_reconstruction_grouping_columns_str}.csv", 
+        plot_filename=f"{crowdkit_model}_consensus_alignment_plot-{binary_rank_reconstruction_grouping_columns_str}")
+    
+    noisy_bt.scores_.to_csv(f"{crowdkit_model}_scores-{binary_rank_reconstruction_grouping_columns_str}.csv")
+    # restore the results dataframe
+    # results_df = binary_rank.restore_from_crowdkit_pairwise_format(noisy_bt.scores_, table_restore_metadata)
+    results_df = noisy_bt.scores_.to_frame()
+    results_df['label'] = results_df.index
+    # after running noisy bradley terry, the label column is renamed to agg_label
+    # make a left and right column title list by zipping the pairwise_left_columns and pairwise_right_columns, 
+    # stripping the words Left and Right, and making sure they are otherwise equal
+    left_column_titles = [col.replace('Left ', '') for col in table_restore_metadata['column_titles']['left']]
+    right_column_titles = [col.replace('Right ', '') for col in table_restore_metadata['column_titles']['right']]
+    # if the column titles groups are not equal print a warning
+    if left_column_titles != right_column_titles:
+        print(f'WARNING: assess_worker_binary_responses_noisy_bradley_terry() left_column_titles != right_column_titles: {left_column_titles} != {right_column_titles}'
+              f'\nThe pairwise_left_columns and pairwise_left_columns are expected to be equal once all "Left " and "Right " prefixes are stripped from the list elements.')
+
+    # split the 'label' column into multiple columns
+    for i, col in enumerate(left_column_titles):
+        results_df[col] = results_df['label'].apply(lambda x: x.split(table_restore_metadata['separator'])[i])
+
+    results_df.to_csv(f"{crowdkit_model}_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
+
+    # plot the rank results
+    plot_rank_strip(results_df.copy(), crowdkit_model, binary_rank_reconstruction_grouping_columns)
+    plot_rank_strip(results_df.copy(), crowdkit_model, binary_rank_reconstruction_grouping_columns[:-1]) if len(binary_rank_reconstruction_grouping_columns) > 1 else None
+    plot_rank_strip(results_df.copy(), crowdkit_model, binary_rank_reconstruction_grouping_columns[:-2]) if len(binary_rank_reconstruction_grouping_columns) > 2 else None
+    plot_rank_strip(results_df.copy(), crowdkit_model, [binary_rank_reconstruction_grouping_columns[0], binary_rank_reconstruction_grouping_columns[-1]]) if len(binary_rank_reconstruction_grouping_columns) > 1 else None
+    # save biases to a file
+    # TODO(ahundt) address the fact that the images have been sorted by model name, which means the biases will detect a bias according to the model name, not worker bias
+    noisy_bt.biases_.to_csv(f"{crowdkit_model}_biases-{binary_rank_reconstruction_grouping_columns_str}.csv")
+
+    return results_df, worker_skills
+
+
 def assess_worker_responses(
         binary_rank_df,
         worker_column="WorkerId", 
@@ -96,7 +317,7 @@ def assess_worker_responses(
         pandas.Series: The estimated skill levels of workers.
     """
     # print running crowdkit
-    print('Running Crowdkit MMSR')
+    print(f'Running Crowdkit {crowdkit_model}')
     # print the columns of the DataFrame
     print(f'binary_rank_df.columns: {binary_rank_df.columns}')
     # print the unique workerIds in the binary_rank_df
@@ -109,9 +330,8 @@ def assess_worker_responses(
     #########################################
     # MMSR
     # print table restore metadata
-    # TODO(ahundt) consider adding a pairwise comparison algorithm like Noisy BradleyTerry https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.pairwise.noisy_bt.NoisyBradleyTerry/ https://github.com/Toloka/crowd-kit/blob/v1.2.1/examples/Readability-Pairwise.ipynb
     # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
-    task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_format(
+    task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_classification_format(
         binary_rank_df, worker_column=worker_column, label_column=label_column,
         task_columns=crowdkit_grouping_columns
     )
@@ -142,29 +362,10 @@ def assess_worker_responses(
 
     #########################################
     # Extract the worker consensus alignment (aka "skills") (this can be visualized with plot_consensus_alignment_skills.py)
-
-    # result = mmsr.fit_predict_score(simplified_table)
-    worker_skills = pd.DataFrame(mmsr.skills_)
-
-    # Create a smaller DataFrame with unique 'workerId' and 'Country' pairs
-    unique_worker_countries = binary_rank_df[['WorkerId', 'Country']].drop_duplicates()
-
-    # Create a mapping from 'workerId' to 'Country' in the smaller DataFrame
-    country_mapping = unique_worker_countries.set_index('WorkerId')['Country']
-
-    # Add the 'Country' column to worker_skills using the mapping
-    worker_skills['Country'] = worker_skills.index.map(country_mapping)
-
-    # rename "skill" Consensus Alignment and "worker" Participant
-    worker_skills.rename(columns={ 'skill': 'Consensus Alignment', 'worker': 'Participant'}, inplace=True)
-
-    # save worker skills to a file
-    worker_skills.to_csv(f"{crowdkit_model}_worker_skills-{crowdkit_grouping_columns_str}.csv")
-    print(worker_skills)
-
-    # plot the consensus alignment of peception (the underlying algorithm referes to this as "skills")
-    plot_consensus_alignment_skills.swarm_violin_plot(worker_skills, filename=f"consensus_alignment_plot-{crowdkit_grouping_columns_str}", orient='v', size=(10, 6), palette=None)
-    # convert the results_df to a dataframe and make the index the task columns
+    worker_skills = worker_skills_add_country_and_save_to_csv(binary_rank_df, mmsr.skills_, 
+                                                              csv_filename=f"{crowdkit_model}_participant_consensus_alignment-{crowdkit_grouping_columns_str}.csv", 
+                                                              plot_filename=f"{crowdkit_model}_participant_consensus_alignment_plot-{crowdkit_grouping_columns_str}",
+                                                              xlim=(-3.5, 3.5))
 
     #########################################
     # visualize the mmsr observation matrix
@@ -203,7 +404,7 @@ def assess_worker_responses(
     
     #########################################
     # calculate the mmsr rank results
-    results_df = binary_rank.restore_from_crowdkit_format(results_df, table_restore_metadata)
+    results_df = binary_rank.restore_from_crowdkit_classification_format(results_df, table_restore_metadata)
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), restore_from_crowdkit_format() results_df:\n{results_df}')
     results_df.to_csv(f"{crowdkit_model}_results_restored-{binary_rank_reconstruction_grouping_columns_str}.csv")
     # print the columns of results_df
@@ -479,7 +680,7 @@ def plot_violins(df, network_models):
     plt.close(fig)
     
 
-def statistical_analysis(df, network_models, seed=None):
+def statistical_analysis(df, network_models, load_existing=False, seed=None):
     """ Perform statistical analysis on the DataFrame.
 
         Parameters:
@@ -539,13 +740,23 @@ def statistical_analysis(df, network_models, seed=None):
 
     plot_violins(df, network_models)
 
+    #########################################
+    # Inter Rater Reliability (IRR)
+
+    # Kendall's W
+    # kendalls_w = assess_kendalls_w(df, crowdkit_grouping_columns=['Item Title', 'Country', 'Source CSV Row Index'], item_grouping_columns=['Item Title', 'Country', 'Source CSV Row Index'])
+
     ####################
     # Binary Rank Stats
     ####################
-    binary_rank_df = binary_rank.binary_rank_table(df, network_models)
-    # single threaded version
-    # binary_rank_df = binary_rank.binary_rank_table(df, network_models)
-    binary_rank_df.to_csv("statistical_output_binary_rank.csv")
+    if load_existing:
+        # load existing binary_rank_df to save processing time, the downside is that it won't be updated if the binary_rank.py code changes
+        binary_rank_df = pd.read_csv("statistical_output_binary_rank.csv")
+    else:
+        binary_rank_df = binary_rank.binary_rank_table(df, network_models)
+        # single threaded version
+        # binary_rank_df = binary_rank.binary_rank_table(df, network_models)
+        binary_rank_df.to_csv("statistical_output_binary_rank.csv")
     # print the count of unique workers
     print(f'Unique workers in binary rank table: binary_rank_df["WorkerId"].unique(): {len(binary_rank_df["WorkerId"].unique())}')
     # print a warning if the number of workers isn't the same as the number of unique workers in the original table
@@ -554,7 +765,8 @@ def statistical_analysis(df, network_models, seed=None):
         raise ValueError(f'WARNING: CREATING THE BINARY TABLE CHANGED THE NUMBER OF WORKERS, THERE IS A BUG!'
                          f'binary_rank_df["WorkerId"].unique(): {binary_rank_df["WorkerId"].unique()} != df["WorkerId"].unique(): {df["WorkerId"].unique()}')
 
-    plot_binary_comparisons(binary_rank_df.copy(), network_models)
+    # Assess worker responses binary rank with noisy bradley terry
+    assess_worker_binary_responses_noisy_bradley_terry(binary_rank_df,seed=seed)
 
     # ranking per country and per question
     rank_results_ci, results_df_ci, worker_skills_ci = assess_worker_responses(binary_rank_df, seed=seed)
@@ -565,7 +777,9 @@ def statistical_analysis(df, network_models, seed=None):
     # overall ranking (across all countries and questions)
     rank_results, results_df, worker_skills = assess_worker_responses(binary_rank_df, crowdkit_grouping_columns=['Left Neural Network Model', 'Right Neural Network Model','Item Type'], binary_rank_reconstruction_grouping_columns=[], seed=seed)
 
-    # TODO(ahundt) add statistical analysis here, save results to a file, and visualize them
+    plot_binary_comparisons(binary_rank_df.copy(), network_models)
+
+    # Additional statistical analyses can be added here, save results to a file, and visualize them
 
     return aggregated_df
 
@@ -841,6 +1055,7 @@ def main():
                     default='{"contrastive":"SCoFT+MPC", "positive":"SCoFT+MP", "baseline":"SCoFT+M", "genericSD":"Stable Diffusion"}', 
                     help="Remap model names as specified with a json dictionary, or specify empty curly brackets {{}} for no remapping. Ensures plots use the final names occurring in the paper.")
     parser.add_argument("--random_seed", type=int, default=8827, nargs='?', help="Random seed for reproducibility, default is 8827, you can specify no random seed with --random_seed=None.")
+    parser.add_argument("--load_existing", type=bool, default=False, help="Load existing statistical_analysis_input.csv if present, saves processing time, but may not be up to date. Default is True.")
     args = parser.parse_args()
 
     test()
@@ -853,29 +1068,32 @@ def main():
     elif os.path.isdir(args.response_results):
         csv_files = [os.path.join(args.response_results, filename) for filename in os.listdir(args.response_results) if filename.endswith(".csv")]
 
-    # Load the csv files, add the survey metadata, and put each element of a response on a separate row
-    # An element of a response is a single image rank, a single binary checkbox, or a single short answer.
-    #
-    # The new columns added are:
-    # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index".
-    # 
-    # The key columns of df, including new columns added are: 
-    # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
-    dataframes = []
-    for csv_file in tqdm(csv_files):
-        df = process_survey_results_csv(csv_file, args.survey_items_file, network_models)
-        dataframes.append(df)
-    
-    # Concatenate the DataFrames
-    combined_df = pd.concat(dataframes, axis=0)
-
+    if args.load_existing and os.path.exists('statistical_analysis_input.csv'):
+        # Load the existing csv file, this saves processing time, but may not be up to date.
+        combined_df = pd.read_csv('statistical_analysis_input.csv')
+    else:
+        # Load the csv files, add the survey metadata, and put each element of a response on a separate row
+        # An element of a response is a single image rank, a single binary checkbox, or a single short answer.
+        #
+        # The new columns added are:
+        # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index".
+        # 
+        # The key columns of df, including new columns added are: 
+        # "Item Title Index", "Item Title", "Item Type", "Neural Network Model", "Image File Path", "Image Shuffle Index", "Response", "Country", "Source CSV Row Index", "Input.prompt", "Input.seed", "HITId", and "WorkerId".
+        dataframes = []
+        for csv_file in tqdm(csv_files):
+            df = process_survey_results_csv(csv_file, args.survey_items_file, network_models)
+            dataframes.append(df)
+        
+        # Concatenate the DataFrames
+        combined_df = pd.concat(dataframes, axis=0)
 
     if args.remap_model_names:
         # Rename the model names throughout the table, e.g. "contrastive" -> "SCoFT+MPC". 
         # Note substrings will not be updated, such as folder names in the filename paths.
         combined_df, network_models = rename_throughout_table(combined_df, network_models, args.remap_model_names, rename_substring=False)
 
-    aggregated_df = statistical_analysis(combined_df, network_models, args.random_seed)
+    aggregated_df = statistical_analysis(combined_df, network_models, args.load_existing, args.random_seed)
 
 if __name__ == "__main__":
     main()
