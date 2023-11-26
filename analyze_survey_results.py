@@ -162,7 +162,16 @@ def plot_rank_strip(results_df, crowdkit_model, binary_rank_reconstruction_group
     binary_rank_reconstruction_grouping_columns = binary_rank_reconstruction_grouping_columns[::-1]
     # Aggregate the ranks based on the groupings and 'agg_label' column
     aggregation_functions = {
-        'agg_score': np.mean
+        'agg_score': ['mean', 'median', 'sem'],
+        'Binary Rank Image': ['nunique', 'count'],
+        'Neural Network Model': ['nunique', 'count'],
+        'Item Title': ['nunique', 'count']
+    }
+    results_agg_df = results_df.groupby(binary_rank_reconstruction_grouping_columns).agg(aggregation_functions).reset_index()
+    results_agg_df.to_csv(f"{crowdkit_model}_rank_results-{binary_rank_reconstruction_grouping_columns_str}_aggregated_statistical_summary.csv")
+    # Aggregate the ranks based on the groupings and 'agg_label' column
+    aggregation_functions = {
+        'agg_score': 'mean'
     }
     results_agg_df = results_df.groupby(binary_rank_reconstruction_grouping_columns).agg(aggregation_functions).reset_index()
     # group, then sort within groups by agg_score
@@ -183,7 +192,7 @@ def plot_rank_strip(results_df, crowdkit_model, binary_rank_reconstruction_group
         # sort by rank
         results_agg_df.sort_values(by=['Rank'], inplace=True, ascending=True)
     # add a rank column by the index within the group
-    results_agg_df.to_csv(f"{crowdkit_model}_results_agg-{binary_rank_reconstruction_grouping_columns_str}.csv")
+    results_agg_df.to_csv(f"{crowdkit_model}_rank_results-{binary_rank_reconstruction_grouping_columns_str}.csv")
     # print(f'Finished CrowdKit Optimization NoisyBradleyTerry.fit_predict(), Results:')
     # print(results_agg_df)
 
@@ -710,7 +719,7 @@ def statistical_analysis(df, network_models, load_existing=False, seed=None):
     # Define the aggregation functions you want to apply
     aggregation_functions = {
         "Response": ["count", "median", "min", "max", "sem", "mean"],
-        "WorkerId": ["nunique"]
+        "WorkerId": ["nunique", "count"]
     }
 
     # Perform aggregation and reset the index
@@ -723,13 +732,14 @@ def statistical_analysis(df, network_models, load_existing=False, seed=None):
     # Per country stats
     ####################
     # Group the DataFrame by "Neural Network Model," "Country," and "Item Title"
-    grouped = df.groupby(["Neural Network Model", "Country", "Item Title"])
+    nci_group_names = ["Neural Network Model", "Country", "Item Title"]
+    grouped = df.groupby(nci_group_names)
 
     # Define the aggregation functions you want to apply
     aggregation_functions = {
         "Response": ["count", "median", "min", "max", "sem", "mean"],
-        "WorkerId": ["nunique"],
-        "Country": ["nunique"]
+        "WorkerId": ["nunique", "count"],
+        "Country": ["nunique", "count"]
     }
 
     # Perform aggregation and reset the index
@@ -765,6 +775,23 @@ def statistical_analysis(df, network_models, load_existing=False, seed=None):
         raise ValueError(f'WARNING: CREATING THE BINARY TABLE CHANGED THE NUMBER OF WORKERS, THERE IS A BUG!'
                          f'binary_rank_df["WorkerId"].unique(): {binary_rank_df["WorkerId"].unique()} != df["WorkerId"].unique(): {df["WorkerId"].unique()}')
 
+    # Aggregate the ranks based on the groupings and 'agg_label' column
+    aggregation_functions = {
+        'Left Binary Rank Image': ['nunique', 'count'],
+        'Right Binary Rank Image': ['nunique', 'count'],
+        'WorkerId': ['nunique', 'count'],
+        'Country': ['nunique', 'count'],
+        'Binary Rank Response Left Image is Greater': ['nunique', 'count']
+    }
+    agg_df = binary_rank_df.agg(aggregation_functions).reset_index()
+    agg_df.to_csv(f"aggregated_statistical_output_binary.csv")
+
+    nci_group_names = ["Left Neural Network Model", "Right Neural Network Model", "Country", "Item Title"]
+    agg_df = binary_rank_df.groupby(nci_group_names).agg(aggregation_functions).reset_index()
+    agg_df.to_csv("aggregated_statistical_output_binary_by_country.csv", index=False)
+    nci_group_names += ['Left Binary Rank Image', 'Right Binary Rank Image']
+    agg_df = binary_rank_df.groupby(nci_group_names).agg(aggregation_functions).reset_index()
+    agg_df.to_csv("aggregated_statistical_output_binary_by_country_and_image.csv", index=False)
     # Assess worker responses binary rank with noisy bradley terry
     assess_worker_binary_responses_noisy_bradley_terry(binary_rank_df,seed=seed)
 
