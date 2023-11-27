@@ -13,12 +13,45 @@ import re
 import binary_rank
 import crowdkit
 from crowdkit.aggregation import MMSR, NoisyBradleyTerry
+from crowdkit.metrics.data import alpha_krippendorff, consistency, uncertainty
 import seaborn as sns
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import plot_ranking
 import plot_consensus_alignment_skills
 # import inter_rater_reliability
+
+def to_dataframe(dest_df):
+    """
+    Ensures the input is a Pandas DataFrame.
+    
+    If the input is not a DataFrame, this function converts it to one.
+    If the input is a Series, it resets the index to ensure the index becomes a column in the resulting DataFrame.
+    If the Series index has a name, it will be set as the column name in the resulting DataFrame.
+
+    Parameters:
+    dest_df (DataFrame or Series or any): The input data that needs to be converted or ensured as a DataFrame.
+
+    Returns:
+    DataFrame: The input as a DataFrame.
+
+    Example:
+    >>> data = [1, 2, 3, 4, 5]
+    >>> index = pd.Index(data, name='MyIndex')
+    >>> series = pd.Series([10, 20, 30, 40, 50], index=index)
+    >>> result_df = to_dataframe(series)
+    >>> print(result_df)
+    """
+    if not isinstance(dest_df, pd.DataFrame):
+        # If dest_df is not a DataFrame, convert it to one
+        if isinstance(dest_df, pd.Series):
+            index_name = dest_df.index.name
+            dest_df = dest_df.reset_index()
+            if index_name:
+                dest_df.columns = [index_name] + list(dest_df.columns[1:])
+        else:
+            dest_df = pd.DataFrame(dest_df)
+    return dest_df
 
 
 def check_column_group_for_consistent_values_in_another_column(df, columns_to_group=["HITId"], columns_to_match=["WorkerId"]):
@@ -78,22 +111,50 @@ def extract_and_process_task_answers(task_answers):
     return pd.Series(ratings_data)  # Convert the dictionary to a Series
 
 
-def worker_skills_add_country_and_save_to_csv(binary_rank_df, worker_skills, csv_filename="worker_skills.csv", plot_filename="worker_skills", xlim=(0, 1.1)):
+def add_column_from_mapping(dest_df, source_df, column_to_match="WorkerId", column_to_add="Country"):
+    """
+    Adds a new column to the destination DataFrame based on a mapping from the source DataFrame.
+
+    The mapping is created from two columns in the source DataFrame: one to use as the key (column_to_match) 
+    and one to use as the value (column_to_add). Each unique value in the key column is mapped to the corresponding 
+    value in the value column. This mapping is then used to add a new column to the destination DataFrame. 
+    The new column's values are determined by looking up each value in the destination DataFrame's column_to_match 
+    column in the mapping.
+
+    Parameters:
+    dest_df (pandas.DataFrame): The DataFrame to which the new column will be added.
+    source_df (pandas.DataFrame): The DataFrame from which the mapping will be created.
+    column_to_match (str): The name of the column in the source DataFrame to use as the key for the mapping. Default is 'WorkerId'.
+    column_to_add (str): The name of the column in the source DataFrame to use as the value for the mapping, and the name of the new column in the destination DataFrame. Default is 'Country'.
+
+    Returns:
+    pandas.DataFrame: The destination DataFrame with the new column added.
+    """
+    # Ensure dest_df is a DataFrame
+    dest_df = to_dataframe(dest_df)
+
+    # Create a smaller DataFrame with unique pairs from the source DataFrame
+    unique_pairs = source_df[[column_to_match, column_to_add]].drop_duplicates()
+
+    # Create a mapping from the column_to_match to the column_to_add in the smaller DataFrame
+    column_mapping = unique_pairs.set_index(column_to_match)[column_to_add]
+
+    # Add the new column to dest_df using the mapping
+    dest_df[column_to_add] = dest_df[column_to_match].map(column_mapping)
+
+    return dest_df
+
+
+def worker_skills_add_country_and_save_to_csv(worker_skills, binary_rank_df, csv_filename="worker_skills.csv", plot_filename="worker_skills", xlim=(0, 1.1)):
     """ Save the worker skills to a CSV file, adding their country as an extra column.
     
     Extract the participant (worker) consensus alignment (aka "skills") (this can be visualized with plot_consensus_alignment_skills.py)
     """
     # make it a dataframe if it isn't already
-    if not isinstance(worker_skills, pd.DataFrame):
-        worker_skills = pd.DataFrame(worker_skills)
-    # Create a smaller DataFrame with unique 'workerId' and 'Country' pairs
-    unique_worker_countries = binary_rank_df[['WorkerId', 'Country']].drop_duplicates()
-
-    # Create a mapping from 'workerId' to 'Country' in the smaller DataFrame
-    country_mapping = unique_worker_countries.set_index('WorkerId')['Country']
+    worker_skills = to_dataframe(worker_skills)
 
     # Add the 'Country' column to worker_skills using the mapping
-    worker_skills['Country'] = worker_skills.index.map(country_mapping)
+    worker_skills = add_column_from_mapping(worker_skills, binary_rank_df, 'WorkerId', 'Country')
 
     # rename "skill" Consensus Alignment and "worker" Participant
     worker_skills.rename(columns={ 'skill': 'Consensus Alignment', 'worker': 'Participant'}, inplace=True)
@@ -267,10 +328,12 @@ def assess_worker_binary_responses_noisy_bradley_terry(
     print(f'Running CrowdKit Optimization NoisyBradleyTerry.fit_predict()')
     # Fit the model and predict worker skills
     noisy_bt = noisy_bt.fit(task_worker_label_df)
+    # set the skills index name to WorkerId
+    noisy_bt.skills_.index.name = 'WorkerId'
     print(f'Finished CrowdKit Optimization NoisyBradleyTerry.fit(), Results:')
     # plot and save worker skills
     worker_skills = worker_skills_add_country_and_save_to_csv(
-        binary_rank_df, noisy_bt.skills_, 
+        noisy_bt.skills_, binary_rank_df,
         csv_filename=f"{crowdkit_model}_consensus_alignment-{binary_rank_reconstruction_grouping_columns_str}.csv", 
         plot_filename=f"{crowdkit_model}_consensus_alignment_plot-{binary_rank_reconstruction_grouping_columns_str}")
     
@@ -307,6 +370,80 @@ def assess_worker_binary_responses_noisy_bradley_terry(
     return results_df, worker_skills
 
 
+def reliability_metrics(binary_rank_df, 
+                        worker_column="WorkerId", 
+                        label_column="Binary Rank Response Left Image is Greater", 
+                        crowdkit_grouping_columns=['Item Title', 'Country', 'HITId', 'Left Binary Rank Image', 'Right Binary Rank Image', 'Left Neural Network Model', 'Right Neural Network Model'], 
+                        reliability_grouping_columns=['Country'],
+                        filename=True):
+    """ Calculate Krippendorf's alpha, consistency, and uncertainty for all data and by country.
+
+    TODO(ahundt) Don't use Krippendorf's alpha until suspicion that the way we sorted questions & labels might cause krippendorf agreement to be underestimated is fixed.
+    
+    Parameters:
+    binary_rank_df (DataFrame): Input DataFrame containing binary rank data.
+    worker_column (str): Column name for worker identification.
+    label_column (str): Column name for binary rank response.
+    crowdkit_grouping_columns (list): Columns for crowdkit grouping.
+    reliability_grouping_columns (list): Columns for reliability grouping.
+
+    Returns:
+    DataFrame: DataFrame with calculated metrics.
+    """
+    # Create a copy of the original DataFrame
+    task_worker_label_df = binary_rank_df.copy()
+    
+    # Convert the binary_rank_df to the format required by crowdkit
+    task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_classification_format(
+        task_worker_label_df, worker_column=worker_column, label_column=label_column,
+        task_columns=crowdkit_grouping_columns, append_columns=crowdkit_grouping_columns
+    )
+    
+    # # Calculate metrics for each group
+    groups = task_worker_label_df.groupby(reliability_grouping_columns)
+    aggregated_metrics = groups.apply(lambda x: pd.Series({
+        'Krippendorf\'s Alpha': alpha_krippendorff(x) if len(x) > 1 else np.nan,
+        'Uncertainty': uncertainty(x) if len(x) > 1 else np.nan,
+        'Consistency': consistency(x) if len(x) > 1 else np.nan
+    })).reset_index()
+    # print the number of tasks
+    print(f'reliability_metrics() Number of tasks: {len(task_worker_label_df["task"].unique())} rows: {len(task_worker_label_df)}')
+    # save the task_worker_label_df to a file
+    task_worker_label_df.to_csv(f"reliability_task_worker_label_df.csv")
+
+    # Calculate metrics for 'All Countries'
+    alpha_all_countries = alpha_krippendorff(task_worker_label_df)
+    uncertainty_all_countries = uncertainty(task_worker_label_df)
+    consistency_all_countries = consistency(task_worker_label_df)
+    
+    # Create 'All Countries' row
+    all_countries_values = {'Krippendorf\'s Alpha': alpha_all_countries,
+                            'Uncertainty': uncertainty_all_countries,
+                            'Consistency': consistency_all_countries}
+    for column in reliability_grouping_columns:
+        all_countries_values[f'{column}'] = 'All'
+    
+    # Create DataFrame for 'All Countries'
+    reliability_df = pd.DataFrame(all_countries_values, index=[0])
+
+    # Concatenate 'All Countries' row with the aggregated metrics
+    reliability_df = pd.concat([reliability_df, aggregated_metrics], ignore_index=True)
+
+    # reorder the columns
+    columns_order = reliability_grouping_columns + ['Krippendorf\'s Alpha', 'Uncertainty', 'Consistency']
+    reliability_df = reliability_df[columns_order]
+    
+    # Save the results to a CSV file
+    crowdkit_grouping_columns_str = '-'.join(crowdkit_grouping_columns).replace(' ', '-')
+    if filename:
+        reliability_df.to_csv(f"reliability-{crowdkit_grouping_columns_str}.csv", index=False)  # Avoid writing the index as a column
+    
+    # Print the table
+    print(f'reliability_df:\n{reliability_df}')
+    return reliability_df
+
+
+
 def assess_worker_responses(
         binary_rank_df,
         worker_column="WorkerId", 
@@ -336,16 +473,20 @@ def assess_worker_responses(
     # join binary_rank_reconstruction_grouping_columns with a dash
     binary_rank_reconstruction_grouping_columns_str = '-'.join(binary_rank_reconstruction_grouping_columns).replace(' ', '-')
 
-    #########################################
-    # MMSR
-    # print table restore metadata
-    # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
+    # convert the binary_rank_df to the format required by crowdkit with 'task', 'worker', and 'label' columns
     task_worker_label_df, table_restore_metadata = binary_rank.convert_table_to_crowdkit_classification_format(
         binary_rank_df, worker_column=worker_column, label_column=label_column,
         task_columns=crowdkit_grouping_columns
     )
+
+
+    #########################################
+    # MMSR
+    # print table restore metadata
+    # Assuming you have 'WorkerId' and 'Binary Rank Response Left Image is Greater' columns
     if seed is not None:
         np.random.seed(seed)
+
     # Create the MMSR model https://toloka.ai/docs/crowd-kit/reference/crowdkit.aggregation.classification.m_msr.MMSR/
     mmsr = MMSR(
         n_iter=10000,
@@ -364,6 +505,8 @@ def assess_worker_responses(
     print(f'Running CrowdKit Optimization MMSR.fit_predict()')
     # Fit the model and predict worker skills
     results_df = mmsr.fit_predict(task_worker_label_df)
+    # set the skills index name to WorkerId
+    mmsr.skills_.index.name = 'WorkerId'
     print(f'Finished CrowdKit Optimization MMSR.fit_predict(), Results:')
     print(results_df)
     # save results to a file
@@ -371,7 +514,7 @@ def assess_worker_responses(
 
     #########################################
     # Extract the worker consensus alignment (aka "skills") (this can be visualized with plot_consensus_alignment_skills.py)
-    worker_skills = worker_skills_add_country_and_save_to_csv(binary_rank_df, mmsr.skills_, 
+    worker_skills = worker_skills_add_country_and_save_to_csv(mmsr.skills_, binary_rank_df, 
                                                               csv_filename=f"{crowdkit_model}_participant_consensus_alignment-{crowdkit_grouping_columns_str}.csv", 
                                                               plot_filename=f"{crowdkit_model}_participant_consensus_alignment_plot-{crowdkit_grouping_columns_str}",
                                                               xlim=(-3.5, 3.5))
@@ -792,6 +935,10 @@ def statistical_analysis(df, network_models, load_existing=False, seed=None):
     nci_group_names += ['Left Binary Rank Image', 'Right Binary Rank Image']
     agg_df = binary_rank_df.groupby(nci_group_names).agg(aggregation_functions).reset_index()
     agg_df.to_csv("aggregated_statistical_output_binary_by_country_and_image.csv", index=False)
+
+    # compute reliability metrics
+    reliability_metrics(binary_rank_df.copy())
+
     # Assess worker responses binary rank with noisy bradley terry
     assess_worker_binary_responses_noisy_bradley_terry(binary_rank_df,seed=seed)
 
@@ -1034,9 +1181,87 @@ def rename_throughout_table(df, network_models=None, remap_dict=None, rename_sub
     return df, network_models
 
 
-def test():
+def test(debug=False):
     """ Small tests of the functions in this file.
     """
+    # baseline krippendorf test
+    val = alpha_krippendorff(pd.DataFrame.from_records([
+        {'task': 'X', 'worker': 'A', 'label': 'Yes'},
+        {'task': 'X', 'worker': 'B', 'label': 'Yes'},
+        {'task': 'Y', 'worker': 'A', 'label': 'No'},
+        {'task': 'Y', 'worker': 'B', 'label': 'No'},
+        {'task': 'Z', 'worker': 'A', 'label': 'Yes'},
+        {'task': 'Z', 'worker': 'B', 'label': 'No'},
+    ]))
+    # print the alpha 
+    if debug:
+        print(f'alpha_krippendorf basic test: {val}')
+    # print a warning if it isn't about 0.4444444444444444
+    if val != 0.4444444444444444:
+        raise ValueError(f'alpha_krippendorff() returned {val} instead of 0.4444444444444444')
+        # Additional Test Scenario
+    baseline_scenario = {
+        'WorkerId': [1, 2, 1, 2, 1, 2],
+        'Binary Rank Response Left Image is Greater': [True, True, False, False, True, False],
+        'Item Title': ['X', 'X', 'Y', 'Y', 'Z', 'Z'],
+        'Country': ['C', 'C', 'C', 'C', 'C', 'C']
+    }
+    binary_rank_df_baseline_scenario = pd.DataFrame(baseline_scenario)
+        # Maximum Agreement Scenario
+    data_max_agreement = {
+        'WorkerId': [1, 2, 3, 4],
+        'Binary Rank Response Left Image is Greater': [True, True, True, True],
+        'Item Title': ['A', 'A', 'B', 'B'],
+        'Country': ['X', 'X', 'Y', 'Y']
+    }
+    binary_rank_df_max_agreement = pd.DataFrame(data_max_agreement)
+    
+    # Minimum Agreement Scenario
+    data_min_agreement = {
+        'WorkerId': [1, 2, 3, 4],
+        'Binary Rank Response Left Image is Greater': [True, False, True, False],
+        'Item Title': ['A', 'A', 'B', 'B'],
+        'Country': ['X', 'X', 'Y', 'Y']
+    }
+    binary_rank_df_min_agreement = pd.DataFrame(data_min_agreement)
+    
+    # Intermediate Agreement Scenario
+    data_intermediate_agreement = {
+        'WorkerId':                                   [1, 2, 3, 1, 2, 3, 1, 2, 3],
+        'Binary Rank Response Left Image is Greater': [True, True, True, True, True, False, False, False, False],
+        'Item Title':                                 ['A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C'],
+        'Country':                                    ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X']
+    }
+    binary_rank_df_intermediate_agreement = pd.DataFrame(data_intermediate_agreement)
+    
+    # Intermediate Agreement Scenario
+    data_intermediate_agreement2 = {
+        'WorkerId':                                   [1, 2, 3, 1, 2, 3, 1, 2, 3, 4, 5],
+        'Binary Rank Response Left Image is Greater': [False, True, True, True, True, True, True, True, True, True, True],
+        'Item Title':                                 ['A', 'A', 'A', 'B', 'B', 'B', 'C', 'C', 'C', 'A', 'A'],
+        'Country':                                    ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'Y', 'Y']
+    }
+    binary_rank_df_intermediate_agreement2 = pd.DataFrame(data_intermediate_agreement2)
+    
+    # Test each scenario
+    scenarios = {
+        'Approx 0.444444 Agreeement': binary_rank_df_baseline_scenario,
+        'Maximum Agreement': binary_rank_df_max_agreement,
+        'Minimum Agreement': binary_rank_df_min_agreement,
+        'Intermediate Agreement': binary_rank_df_intermediate_agreement,
+        'Intermediate Agreement 2': binary_rank_df_intermediate_agreement2
+    }
+    
+    crowdkit_grouping_columns = ['Item Title', 'Country']
+    reliability_grouping_columns = ['Country']  # Adjust this to your actual grouping columns
+    
+    for scenario_name, scenario_df in scenarios.items():
+        if debug:
+            print(f"\nRunning test scenario: {scenario_name}")
+        result = reliability_metrics(scenario_df, crowdkit_grouping_columns=crowdkit_grouping_columns, reliability_grouping_columns=reliability_grouping_columns, filename=False)
+        if debug:
+            print(f"Result for {scenario_name}:")
+            print(result)
     # Example usage of get_response_rows_per_image():
     # Corrected example usage with data format:
     data = {

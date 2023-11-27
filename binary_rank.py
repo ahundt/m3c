@@ -214,6 +214,7 @@ def convert_table_to_crowdkit_classification_format(
         worker_column='WorkerId',
         label_column='Binary Rank Response Left Image is Greater',
         separator='|',
+        append_columns=[],
         remap_to_integer_ids=False):
     """ Simplify the binary rank table by grouping by the specified columns and concatenating the entries into a single string in the format expected by the crowd-kit library.
 
@@ -240,6 +241,7 @@ def convert_table_to_crowdkit_classification_format(
         worker_column (str): Name of the column containing the worker ids.
         label_column (str): Name of the column containing the labels.
         separator (str): The separator to use for concatenating the task columns. Defaults to '|'.
+        append_columns (list): List of columns to append to the task column. Defaults to [].
         remap_to_integer_ids (bool): Whether to remap the task, worker, and label columns to integer ids. Defaults to False.
             If True, the task, worker, and label columns will be remapped to integer ids.
             Otherwise the task, worker, and label columns will be left as strings.
@@ -259,12 +261,16 @@ def convert_table_to_crowdkit_classification_format(
         'worker': worker_column,
         'label': label_column
     }
-    
+    # add the append columns to the column titles
+    for col in append_columns:
+        column_titles[col] = col
     # concatenate all the task columns into a single column
     st2 = pd.DataFrame()
     st2['task'] = binary_rank_df[task_columns].apply(lambda row: separator.join(row), axis=1)
     st2['worker'] = binary_rank_df[worker_column]
     st2['label'] = binary_rank_df[label_column]
+    # append the additional columns
+    st2[append_columns] = binary_rank_df[append_columns]
 
     # get the reformatting variables
     task_columns = separator.join(task_columns)
@@ -292,12 +298,22 @@ def convert_table_to_crowdkit_classification_format(
         'labels_list': label_list,
         'tasks_list': task_list
     }
+    table_restore_metadata['append_columns'] = append_columns
+    # add the append columns to the table restore metadata
+    for col in append_columns:
+        col_list = st2[col].unique()
+        table_restore_metadata[f'{col}_list'] = col_list
+        col_to_id = {col: i for i, col in enumerate(col_list)}
+        table_restore_metadata[f'{col}_mapping'] = col_to_id
+        table_restore_metadata[f'n_{col}'] = len(col_to_id)
 
     # remap the task, worker, and label columns to integer ids
     if remap_to_integer_ids:
         st2['task'] = st2['task'].map(task_to_id)
         st2['worker'] = st2['worker'].map(worker_to_id)
         st2['label'] = st2['label'].map(label_to_id)
+        for col in append_columns:
+            st2[col] = st2[col].map(col_to_id)
 
     # return the simplified int table, the maps, and the column names
     return st2, table_restore_metadata
