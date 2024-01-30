@@ -1308,6 +1308,8 @@ def main():
                     help="Remap model names as specified with a json dictionary, or specify empty curly brackets {{}} for no remapping. Ensures plots use the final names occurring in the paper.")
     parser.add_argument("--random_seed", type=int, default=8827, nargs='?', help="Random seed for reproducibility, default is 8827, you can specify no random seed with --random_seed=None.")
     parser.add_argument("--load_existing", type=bool, default=False, help="Load existing statistical_analysis_input.csv if present, saves processing time, but may not be up to date. Default is True.")
+    parser.add_argument("--worker_ids_to_remove", type=str, default=None, help="Path to text file where each line is a AMT worker ID of workers not to include in results.")
+
     args = parser.parse_args()
 
     test()
@@ -1339,6 +1341,19 @@ def main():
         
         # Concatenate the DataFrames
         combined_df = pd.concat(dataframes, axis=0)
+    
+    if args.worker_ids_to_remove is not None:
+        if os.path.exists(args.worker_ids_to_remove):
+            with open(args.worker_ids_to_remove, 'r') as f:
+                worker_ids = [line.strip() for line in f]
+            # Remove workers one by one from dataframe to analyze how many responses they gave
+            n = len(combined_df)
+            for worker_id in worker_ids:
+                combined_df = combined_df[combined_df["WorkerId"] != worker_id]
+                print('Removing Worker ID {} \'s {} responses'.format(worker_id, n-len(combined_df)))
+                n = len(combined_df)
+        else:
+            raise Exception("Could not find file of ids to remove." + args.worker_ids_to_remove)
 
     if args.remap_model_names:
         # Rename the model names throughout the table, e.g. "contrastive" -> "SCoFT+MPC". 
